@@ -1195,10 +1195,18 @@
 
   var realFetch = window.fetch.bind(window);
   var modePromise = null;
+  // Set once we probe the Vercel serverless proxy (/api/chat). When available,
+  // the key lives server-side and the browser never needs its own copy.
+  var proxyAvailable = false;
+  var proxyProviders = [];
 
   function getLS(k, d) { try { var v = JSON.parse(localStorage.getItem(k)); return v == null ? d : v; } catch (e) { return d; } }
   function setLS(k, v) { localStorage.setItem(k, JSON.stringify(v)); }
   function keys() { return getLS(LS_KEYS, {}); }
+  // True when the serverless proxy holds a key for this provider.
+  function proxyHas(id) { return proxyAvailable && proxyProviders.indexOf(String(id)) !== -1; }
+  // True when we can chat as this provider: a local key, or the proxy has one.
+  function haveKey(id) { return !!keys()[id] || proxyHas(id); }
   function custom() { return getLS(LS_CUSTOM, {}); }
   function allProviders() {
     var out = {}, p;
@@ -1228,11 +1236,31 @@
           var ct = r.headers.get("content-type") || "";
           var m = r.ok && ct.indexOf("json") !== -1 ? "server" : "browser";
           window.__OPENLINK_BROWSER__ = (m === "browser");
+          if (m === "browser") return probeProxy();
           return m;
         })
-        .catch(function () { window.__OPENLINK_BROWSER__ = true; return "browser"; });
+        .catch(function () { window.__OPENLINK_BROWSER__ = true; return probeProxy(); });
     }
     return modePromise;
+  }
+
+  // Ask the host whether a serverless key-proxy exists (Vercel: yes;
+  // GitHub Pages / local static: no, so we fall back to a browser-held key).
+  function probeProxy() {
+    return realFetch("/api/chat", { method: "GET" })
+      .then(function (pr) {
+        var ct = pr.headers.get("content-type") || "";
+        if (pr.ok && ct.indexOf("json") !== -1) {
+          return pr.json().then(function (j) {
+            proxyAvailable = true;
+            proxyProviders = (j && j.providers) || [];
+            return "browser";
+          });
+        }
+        proxyAvailable = false; proxyProviders = [];
+        return "browser";
+      })
+      .catch(function () { proxyAvailable = false; proxyProviders = []; return "browser"; });
   }
 
   /* ---- emulated routes ---- */
@@ -1245,7 +1273,7 @@
         id: id,
         label: p.label,
         models: p.models || [],
-        has_key: !!ks[id],
+        has_key: haveKey(id),
         active: id === s.provider,
         custom: !!p.custom,
         key_url: p.key_url || ""
@@ -1256,7 +1284,7 @@
       provider: active.label || s.provider,
       provider_id: s.provider,
       model: s.model,
-      ready: !!ks[s.provider],
+      ready: haveKey(s.provider),
       providers: providers,
       workspace: browserWsState(),
       allow_exec: false,
@@ -1276,8 +1304,9 @@
 
     var s = sel(), all = allProviders(), p = all[s.provider];
     var key = keys()[s.provider] || "";
+    var useProxy = !key && proxyHas(s.provider);
     if (!p) return json({ error: "Unknown provider — pick one in the badge above." }, 400);
-    if (!key) {
+    if (!key && !useProxy) {
       return json({
         error: "No API key for " + p.label + " yet — click the status badge, then \"add key\". Free key: " + (p.key_url || "https://openrouter.ai/keys")
       }, 401);
@@ -1299,22 +1328,37 @@
     }
     msgs.push({ role: "user", content: userText });
 
+    var extra = {};
+    if (s.provider === "openrouter") {
+      // OpenRouter asks for these on browser calls.
+      extra["HTTP-Referer"] = location.origin;
+      extra["X-Title"] = "Openlink AI";
+    }
     var headers = {
       "Content-Type": "application/json",
       "Authorization": "Bearer " + key
     };
-    if (s.provider === "openrouter") {
-      // OpenRouter asks for these on browser calls.
-      headers["HTTP-Referer"] = location.origin;
-      headers["X-Title"] = "Openlink AI";
-    }
+    for (var ek in extra) headers[ek] = extra[ek];
 
-    return realFetch((p.base_url || "").replace(/\/+$/, "") + "/chat/completions", {
-      method: "POST",
-      headers: headers,
-      body: JSON.stringify({ model: s.model, messages: msgs, stream: true }),
-      signal: init && init.signal
-    }).then(function (up) {
+    var upReq;
+    if (useProxy) {
+      // Serverless proxy holds the key server-side (never sent to the browser).
+      // It forwards to the provider and streams the OpenAI SSE back unchanged.
+      upReq = realFetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ provider: s.provider, model: s.model, messages: msgs, stream: true, extra_headers: extra }),
+        signal: init && init.signal
+      });
+    } else {
+      upReq = realFetch((p.base_url || "").replace(/\/+$/, "") + "/chat/completions", {
+        method: "POST",
+        headers: headers,
+        body: JSON.stringify({ model: s.model, messages: msgs, stream: true }),
+        signal: init && init.signal
+      });
+    }
+    return upReq.then(function (up) {
       if (!up.ok || !up.body) {
         return up.json().catch(function () { return {}; }).then(function (e) {
           var msg = (e.error && (e.error.message || e.error)) || ("HTTP " + up.status);
@@ -1395,7 +1439,7 @@
       provider: (all[s.provider] || {}).label || s.provider,
       provider_id: s.provider,
       model: s.model,
-      ready: !!ks[s.provider]
+      ready: haveKey(s.provider)
     });
   }
 
