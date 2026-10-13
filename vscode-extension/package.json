@@ -1,0 +1,84 @@
+{
+	"name": "openlink",
+	"displayName": "Openlink AI",
+	"description": "Openlink AI for VS Code",
+	"version": "0.0.2",
+	"publisher": "openlink-ai",
+	"license": "MIT",
+	"icon": "images/icon.png",
+	"galleryBanner": {
+		"color": "#000000",
+		"theme": "dark"
+	},
+	"engines": {
+		"vscode": "^1.85.0"
+	},
+	"categories": [
+		"Other"
+	],
+	"activationEvents": [
+		"onStartupFinished"
+	],
+	"main": "./extension.js",
+	"contributes": {
+		"commands": [
+			{
+				"command": "openlink.openChat",
+				"title": "Open Openlink Chat",
+				"icon": "$(comment-discussion)"
+			},
+			{
+				"command": "openlink.openWeb",
+				"title": "Open Openlink Web UI",
+				"icon": "$(globe)"
+			},
+			{
+				"command": "openlink.addFilepathToTerminal",
+				"title": "Add Filepath to Openlink Chat"
+			}
+		],
+		"menus": {
+			"editor/title": [
+				{
+					"command": "openlink.openWeb",
+					"group": "navigation"
+				}
+			]
+		},
+		"keybindings": [
+			{
+				"command": "openlink.openChat",
+				"key": "ctrl+alt+o",
+				"mac": "cmd+alt+o"
+			},
+			{
+				"command": "openlink.openWeb",
+				"key": "ctrl+alt+w",
+				"mac": "cmd+alt+w"
+			},
+			{
+				"command": "openlink.addFilepathToTerminal",
+				"key": "ctrl+alt+shift+o",
+				"mac": "cmd+alt+shift+o"
+			}
+		],
+		"configuration": {
+			"title": "Openlink",
+			"properties": {
+				"openlink.pythonPath": {
+					"type": "string",
+					"default": "python",
+					"description": "Python executable used to launch Openlink (e.g. python, py -3.11, or a full path)."
+				},
+				"openlink.projectPath": {
+					"type": "string",
+					"default": "",
+					"description": "Folder containing run.py and web_server.py. Leave empty to auto-detect from the workspace."
+				}
+			}
+		}
+	},
+	"scripts": {
+		"package": "vsce package --allow-missing-repository"
+	}
+}

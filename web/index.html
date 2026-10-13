@@ -1,0 +1,2975 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OpenLink AI</title>
+<style>
+  :root {
+    --bg: #0a0a0b;
+    --panel: #131316;
+    --panel2: #1a1a1f;
+    --border: #26262c;
+    --border2: #33333a;
+    --accent: #22d3ee;
+    --green: #4ade80;
+    --text: #e6e6e9;
+    --dim: #8a8a94;
+    --faint: #5c5c66;
+    --user-bg: #17241c;
+    --user-border: #24402e;
+    --user-text: #d6f5e1;
+    --err-bg: #2a1215;
+    --err-border: #5c1d22;
+    --err-text: #fca5a5;
+    --side-w: 264px;
+  }
+  html[data-theme="light"] {
+    --bg: #f7f7f8;
+    --panel: #ffffff;
+    --panel2: #f1f1f3;
+    --border: #e2e2e6;
+    --border2: #cfcfd6;
+    --accent: #0891b2;
+    --green: #16a34a;
+    --text: #1c1c20;
+    --dim: #61616b;
+    --faint: #94949e;
+    --user-bg: #e7f7ee;
+    --user-border: #c3ead4;
+    --user-text: #14532d;
+    --err-bg: #fdeaea;
+    --err-border: #f5c2c7;
+    --err-text: #b42318;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  [hidden] { display: none !important; }
+  html, body { height: 100%; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+    font-size: 14px;
+    overflow: hidden;
+  }
+  #app { display: flex; height: 100vh; }
+
+  /* ---------- sidebar ---------- */
+  #sidebar {
+    width: var(--side-w);
+    min-width: var(--side-w);
+    background: var(--panel);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    transition: margin-left .18s ease;
+  }
+  #sidebar.hidden { margin-left: calc(-1 * var(--side-w)); }
+  .side-head { padding: 14px 14px 10px; border-bottom: 1px solid var(--border); }
+  .logo { font-size: 15px; font-weight: 700; letter-spacing: .4px; margin-bottom: 12px; }
+  .logo b { color: var(--accent); font-weight: 700; }
+  .logo span { color: var(--green); }
+  #newchat {
+    width: 100%;
+    background: var(--panel2);
+    border: 1px solid var(--border2);
+    color: var(--text);
+    border-radius: 8px;
+    padding: 9px 12px;
+    font: inherit;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  #newchat:hover { border-color: var(--accent); color: var(--accent); }
+  #sess-list { flex: 1; overflow-y: auto; padding: 8px; }
+  .sess-group { font-size: 11px; color: var(--faint); text-transform: uppercase; letter-spacing: .6px; padding: 10px 8px 4px; }
+  .sess {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 9px;
+    border-radius: 7px;
+    cursor: pointer;
+    color: var(--dim);
+    font-size: 13px;
+    border: 1px solid transparent;
+  }
+  .sess:hover { background: var(--panel2); color: var(--text); }
+  .sess.active { background: var(--panel2); color: var(--text); border-color: var(--border2); }
+  .sess .st { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .sess .del {
+    display: none;
+    background: none;
+    border: none;
+    color: var(--faint);
+    cursor: pointer;
+    font-size: 13px;
+    padding: 0 2px;
+    font-family: inherit;
+  }
+  .sess:hover .del { display: block; }
+  .sess .del:hover { color: var(--err-text); }
+  .side-foot { border-top: 1px solid var(--border); padding: 10px; display: flex; flex-direction: column; gap: 8px; }
+  .side-foot .row { display: flex; gap: 8px; }
+  .badge {
+    flex: 1;
+    font-size: 11.5px;
+    color: var(--dim);
+    border: 1px solid var(--border);
+    padding: 7px 10px;
+    border-radius: 7px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    cursor: pointer;
+    background: var(--panel2);
+    font-family: inherit;
+    text-align: left;
+  }
+  .badge:hover { border-color: var(--accent); color: var(--accent); }
+  .badge.ready { color: var(--green); border-color: color-mix(in srgb, var(--green) 45%, transparent); }
+  .badge.notready { color: var(--err-text); border-color: var(--err-border); }
+  .iconbtn {
+    background: var(--panel2);
+    border: 1px solid var(--border);
+    color: var(--dim);
+    border-radius: 7px;
+    width: 34px;
+    cursor: pointer;
+    font-size: 14px;
+    font-family: inherit;
+  }
+  .iconbtn:hover { border-color: var(--accent); color: var(--accent); }
+
+  /* ---------- main ---------- */
+  #main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+  #topbar {
+    height: 50px;
+    min-height: 50px;
+    background: var(--panel);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 0 14px;
+  }
+  #toggleside {
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--dim);
+    border-radius: 7px;
+    width: 30px;
+    height: 30px;
+    cursor: pointer;
+    font-size: 14px;
+    font-family: inherit;
+  }
+  #toggleside:hover { border-color: var(--accent); color: var(--accent); }
+  #brand {
+    font-size: 14.5px;
+    font-weight: 700;
+    letter-spacing: .3px;
+    color: var(--text);
+    white-space: nowrap;
+    padding-right: 12px;
+    border-right: 1px solid var(--border);
+  }
+  #brand b { color: var(--accent); font-weight: 700; }
+  #sess-title { flex: 1; font-size: 13.5px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--dim); }
+  #model-pill, #ws-pill {
+    background: var(--panel2);
+    border: 1px solid var(--border2);
+    color: var(--text);
+    border-radius: 999px;
+    padding: 6px 14px;
+    font: inherit;
+    font-size: 12.5px;
+    cursor: pointer;
+    max-width: 46vw;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  #model-pill:hover, #ws-pill:hover { border-color: var(--accent); color: var(--accent); }
+  #ws-pill { max-width: 24vw; }
+  #ws-pill.trusted { border-color: color-mix(in srgb, var(--green) 50%, transparent); color: var(--green); }
+  #file-dd .ddmenu { bottom: auto; top: calc(100% + 9px); }
+
+  #chat {
+    flex: 1;
+    overflow-y: auto;
+    padding: 22px 0 12px;
+  }
+  .chat-inner { max-width: 820px; margin: 0 auto; padding: 0 22px; display: flex; flex-direction: column; gap: 16px; }
+
+  #welcome { text-align: center; padding: 9vh 20px 0; }
+  #welcome h2 { font-size: 24px; font-weight: 700; margin-bottom: 8px; }
+  #welcome h2 b { color: var(--accent); }
+  #welcome p { color: var(--dim); font-size: 13.5px; line-height: 1.6; max-width: 520px; margin: 0 auto 22px; }
+  .sugg { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+  .sugg button {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    color: var(--dim);
+    border-radius: 999px;
+    padding: 8px 15px;
+    font: inherit;
+    font-size: 12.5px;
+    cursor: pointer;
+  }
+  .sugg button:hover { border-color: var(--accent); color: var(--accent); }
+
+  .msg { line-height: 1.6; white-space: pre-wrap; word-wrap: break-word; animation: pop .15s ease-out; }
+  @keyframes pop { from { opacity: 0; transform: translateY(4px); } }
+  .msg-wrap { display: flex; flex-direction: column; gap: 5px; }
+  .msg-role { font-size: 11px; color: var(--faint); letter-spacing: .5px; text-transform: uppercase; }
+  .msg.user {
+    align-self: flex-end;
+    background: var(--user-bg);
+    border: 1px solid var(--user-border);
+    color: var(--user-text);
+    padding: 11px 15px;
+    border-radius: 14px 14px 4px 14px;
+    max-width: 85%;
+    margin-left: auto;
+  }
+  .msg.assistant { color: var(--text); }
+  .msg.error {
+    align-self: center;
+    background: var(--err-bg);
+    border: 1px solid var(--err-border);
+    color: var(--err-text);
+    font-size: 13px;
+    padding: 10px 14px;
+    border-radius: 10px;
+    max-width: 92%;
+  }
+  .msg.note {
+    align-self: center;
+    color: var(--faint);
+    font-size: 12px;
+    text-align: center;
+    max-width: 92%;
+  }
+  .msg .cursor {
+    display: inline-block;
+    width: 8px;
+    height: 15px;
+    background: var(--accent);
+    margin-left: 2px;
+    vertical-align: text-bottom;
+    animation: blink 1s steps(1) infinite;
+  }
+  @keyframes blink { 50% { opacity: 0; } }
+  .msg code.ic, .msg.inline-code {
+    background: var(--panel2);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 1px 5px;
+    font-size: 13px;
+    color: var(--accent);
+    font-family: "Cascadia Code", "Consolas", monospace;
+  }
+  .cb {
+    margin: 10px 0;
+    border: 1px solid var(--border);
+    border-radius: 9px;
+    overflow: hidden;
+    background: var(--panel2);
+    white-space: normal;
+  }
+  .cb-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--panel);
+    border-bottom: 1px solid var(--border);
+    padding: 6px 11px;
+    font-size: 11px;
+    color: var(--dim);
+  }
+  .cb-bar .lang { flex: 1; text-transform: lowercase; }
+  .cb-bar button {
+    background: var(--panel2);
+    border: 1px solid var(--border);
+    color: var(--dim);
+    font-size: 11px;
+    padding: 3px 11px;
+    border-radius: 5px;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  .cb-bar button:hover { border-color: var(--accent); color: var(--accent); }
+  .cb-bar button.pv:hover { border-color: var(--green); color: var(--green); }
+  .cb pre {
+    padding: 13px;
+    overflow-x: auto;
+    font-size: 13px;
+    line-height: 1.5;
+    color: var(--text);
+    white-space: pre;
+    font-family: "Cascadia Code", "Consolas", monospace;
+  }
+
+  /* ---------- composer ---------- */
+  footer {
+    background: var(--bg);
+    padding: 0 20px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .composer {
+    max-width: 820px;
+    margin: 0 auto;
+    width: 100%;
+    background: var(--panel);
+    border: 1px solid var(--border2);
+    border-radius: 14px;
+    padding: 10px 12px 9px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .composer:focus-within { border-color: var(--accent); }
+  #input {
+    background: none;
+    border: none;
+    color: var(--text);
+    font: inherit;
+    font-size: 14px;
+    line-height: 1.55;
+    outline: none;
+    resize: none;
+    height: 56px;
+    min-height: 56px;
+    max-height: 260px;
+    overflow-y: auto;
+    width: 100%;
+  }
+  #input::placeholder { color: var(--faint); }
+  .ctl-row { display: flex; gap: 8px; align-items: center; }
+  #attach-list { display: flex; flex-wrap: wrap; gap: 6px; }
+  #attach-list:empty { display: none; }
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--panel2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 999px;
+    padding: 4px 6px 4px 12px;
+    font-size: 12px;
+    max-width: 320px;
+  }
+  .chip .cname { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .chip .csize { color: var(--dim); font-size: 11px; }
+  .chip button {
+    background: none;
+    border: none;
+    color: var(--dim);
+    cursor: pointer;
+    font-size: 13px;
+    padding: 0 6px;
+    font-family: inherit;
+  }
+  .chip button:hover { color: var(--err-text); }
+  button.ghost {
+    background: none;
+    color: var(--dim);
+    border: 1px solid var(--border);
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    font-size: 15px;
+    cursor: pointer;
+    font-family: inherit;
+    line-height: 1;
+  }
+  button.ghost:hover { border-color: var(--accent); color: var(--accent); }
+  button.ghost.add { font-size: 18px; font-weight: 700; }
+  button.send {
+    margin-left: auto;
+    background: var(--accent);
+    color: #04222a;
+    border: none;
+    height: 32px;
+    padding: 0 18px;
+    border-radius: 8px;
+    font: inherit;
+    font-weight: 700;
+    font-size: 13px;
+    cursor: pointer;
+  }
+  button.send:hover { filter: brightness(1.12); }
+  button.send:disabled { opacity: .45; cursor: not-allowed; }
+
+  /* ---------- composer bar: mode / provider ---------- */
+  .cbar {
+    max-width: 820px;
+    margin: 0 auto;
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .dd { position: relative; }
+  .ddbtn {
+    background: var(--panel);
+    border: 1px solid var(--border2);
+    color: var(--dim);
+    border-radius: 999px;
+    padding: 5px 12px;
+    font: inherit;
+    font-size: 12px;
+    line-height: 1.4;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    white-space: nowrap;
+    max-width: 46vw;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .ddbtn:hover, .dd.open .ddbtn { border-color: var(--accent); color: var(--accent); }
+  #shell-pill.on {
+    border-color: color-mix(in srgb, var(--green) 55%, transparent);
+    color: var(--green);
+    font-weight: 600;
+  }
+  #shell-pill.off { color: var(--faint); }
+  .ddmenu {
+    position: absolute;
+    bottom: calc(100% + 9px);
+    left: 0;
+    min-width: 272px;
+    background: var(--panel);
+    border: 1px solid var(--border2);
+    border-radius: 12px;
+    padding: 6px;
+    box-shadow: 0 16px 40px rgba(0,0,0,.5);
+    display: none;
+    z-index: 45;
+  }
+  html[data-theme="light"] .ddmenu { box-shadow: 0 16px 40px rgba(0,0,0,.18); }
+  .dd.open .ddmenu { display: block; }
+  .ddmenu .mhead {
+    font-size: 10.5px;
+    text-transform: uppercase;
+    letter-spacing: .7px;
+    color: var(--faint);
+    padding: 6px 10px 5px;
+  }
+  .ddmenu button {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    width: 100%;
+    text-align: left;
+    background: none;
+    border: 1px solid transparent;
+    color: var(--text);
+    border-radius: 8px;
+    padding: 8px 10px;
+    font: inherit;
+    font-size: 13px;
+    cursor: pointer;
+  }
+  .ddmenu button:hover { background: var(--panel2); border-color: var(--border); }
+  .ddmenu button.current { border-color: var(--accent); color: var(--accent); }
+  .ddmenu button i { font-style: normal; font-weight: 600; }
+  .ddmenu button em {
+    font-style: normal;
+    font-size: 11.5px;
+    color: var(--faint);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .ddmenu button.nokey em { color: var(--err-text); }
+  .cbar-fill { flex: 1; }
+  .cbar-hint { font-size: 11px; color: var(--faint); white-space: nowrap; }
+
+  /* ---------- modals ---------- */
+  .overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,.6);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 50;
+  }
+  html[data-theme="light"] .overlay { background: rgba(0,0,0,.35); }
+  .overlay.open { display: flex; }
+  .modal-box {
+    background: var(--panel);
+    border: 1px solid var(--border2);
+    border-radius: 14px;
+    width: min(680px, 92vw);
+    max-height: 80vh;
+    overflow-y: auto;
+    padding: 18px;
+    color: var(--text);
+  }
+  .modal-box h2 { color: var(--accent); font-size: 15px; margin-bottom: 12px; }
+  .modal-close {
+    float: right;
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--dim);
+    padding: 2px 10px;
+    font-weight: 400;
+    cursor: pointer;
+    font-family: inherit;
+    border-radius: 6px;
+  }
+  .modal-close:hover { color: var(--err-text); border-color: var(--err-text); }
+  .prov { margin-bottom: 14px; }
+  .prov-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 13px;
+    color: var(--text);
+    padding: 6px 2px;
+  }
+  .prov-head .nokey { color: var(--err-text); font-size: 11px; }
+  .prov-head .active-prov { color: var(--accent); font-size: 11px; }
+  .models { display: flex; flex-wrap: wrap; gap: 6px; }
+  .models button {
+    background: var(--panel2);
+    border: 1px solid var(--border);
+    color: var(--dim);
+    font-size: 12px;
+    padding: 5px 10px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  .models button:hover { border-color: var(--accent); color: var(--accent); }
+  .models button.current { border-color: var(--green); color: var(--green); }
+
+  .pform { display: flex; flex-direction: column; gap: 12px; }
+  .pform label {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    font-size: 12px;
+    color: var(--dim);
+  }
+  .pform input {
+    background: var(--panel2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 10px 12px;
+    border-radius: 8px;
+    font: inherit;
+    font-size: 13.5px;
+    outline: none;
+  }
+  .pform input:focus { border-color: var(--accent); }
+  .pform .row { display: flex; gap: 10px; }
+  .pform .row label { flex: 1; }
+  .pform .mrow { display: flex; gap: 8px; align-items: stretch; flex-wrap: wrap; }
+  .pform .mrow input { flex: 1; min-width: 0; }
+  .pform .mrow button {
+    background: var(--panel2);
+    border: 1px solid var(--border);
+    color: var(--dim);
+    border-radius: 8px;
+    font: inherit;
+    font-size: 12px;
+    padding: 0 12px;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .pform .mrow button:hover { border-color: var(--accent); color: var(--accent); }
+  .pform .mrow button:disabled { opacity: .5; cursor: wait; }
+  .pform-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 4px; }
+  .pform-actions button { font-size: 13px; padding: 9px 18px; border-radius: 8px; font-family: inherit; cursor: pointer; }
+  .pform-actions button.ghost { background: var(--panel2); color: var(--dim); border: 1px solid var(--border); width: auto; height: auto; }
+  .pform-actions button.send { background: var(--accent); color: #04222a; border: none; height: auto; }
+  .pform-err { color: var(--err-text); font-size: 12px; min-height: 15px; }
+  .pform-note { color: var(--faint); font-size: 11.5px; line-height: 1.5; }
+  .prov-del, .prov-key {
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--dim);
+    font-size: 10.5px;
+    padding: 2px 8px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-family: inherit;
+    margin-left: 8px;
+  }
+  .prov-del:hover { border-color: var(--err-text); color: var(--err-text); }
+  .prov-key:hover { border-color: var(--green); color: var(--green); }
+
+  .pv-box {
+    background: var(--panel);
+    border: 1px solid var(--border2);
+    border-radius: 14px;
+    width: min(960px, 94vw);
+    height: min(640px, 86vh);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .pv-head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border);
+    font-size: 13px;
+    color: var(--accent);
+  }
+  .pv-head span { flex: 1; }
+  .pv-head button {
+    background: var(--panel2);
+    border: 1px solid var(--border);
+    color: var(--dim);
+    font-size: 12px;
+    padding: 3px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  .pv-head button:hover { border-color: var(--accent); color: var(--accent); }
+  #pv-frame { flex: 1; border: none; background: #fff; display: none; }
+  #pv-code {
+    flex: 1;
+    margin: 0;
+    padding: 16px;
+    overflow: auto;
+    font-size: 13px;
+    line-height: 1.55;
+    color: var(--text);
+    white-space: pre;
+    display: none;
+    font-family: "Cascadia Code", "Consolas", monospace;
+  }
+
+  /* ---------- workspace / folder ---------- */
+  .ws-crumb {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 3px;
+    align-items: center;
+    font-size: 12px;
+    color: var(--dim);
+    background: var(--panel2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 6px 10px;
+    max-height: 62px;
+    overflow-y: auto;
+  }
+  .ws-crumb button {
+    background: none;
+    border: none;
+    color: var(--dim);
+    font: inherit;
+    font-size: 12px;
+    cursor: pointer;
+    padding: 1px 4px;
+    border-radius: 4px;
+    max-width: 180px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .ws-crumb button:hover { color: var(--accent); }
+  .ws-crumb .sep { color: var(--faint); }
+  .ws-list, .ws-files {
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--panel2);
+    height: 240px;
+    overflow-y: auto;
+    padding: 4px;
+  }
+  .ws-files { height: auto; }
+  .ws-newlist { height: 180px; }
+  #wsnew-drivebar { margin-top: -4px; }
+  .ws-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    text-align: left;
+    background: none;
+    border: 1px solid transparent;
+    color: var(--text);
+    padding: 7px 9px;
+    border-radius: 6px;
+    font: inherit;
+    font-size: 13px;
+    cursor: pointer;
+  }
+  .ws-row:hover { background: var(--panel); border-color: var(--border); }
+  .ws-row .ic { width: 16px; text-align: center; color: var(--dim); flex-shrink: 0; }
+  .ws-row .nm { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ws-row .meta { color: var(--faint); font-size: 11px; flex-shrink: 0; }
+  .ws-empty { color: var(--faint); font-size: 12.5px; padding: 16px; text-align: center; }
+  .ws-root {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    background: var(--panel2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 12px;
+    font-size: 13px;
+  }
+  .ws-root .pth {
+    flex: 1;
+    min-width: 160px;
+    font-family: "Cascadia Code", "Consolas", monospace;
+    font-size: 12.5px;
+    word-break: break-all;
+  }
+  .trust-tag {
+    color: var(--green);
+    font-size: 11.5px;
+    border: 1px solid color-mix(in srgb, var(--green) 45%, transparent);
+    border-radius: 999px;
+    padding: 2px 9px;
+    white-space: nowrap;
+  }
+  .trust-tag.no { color: var(--err-text); border-color: var(--err-border); }
+  #wsmodal .modal-box.wide { width: min(1000px, 95vw); }
+  .ws-exp { display: flex; flex-direction: column; gap: 9px; }
+  .ws-exp-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .ws-exp-head .ttl { font-size: 13px; font-weight: 600; }
+  .ws-exp-head .fill { flex: 1; }
+  .ws-mini {
+    background: var(--panel2);
+    border: 1px solid var(--border);
+    color: var(--dim);
+    border-radius: 7px;
+    font: inherit;
+    font-size: 12px;
+    padding: 5px 11px;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  .ws-mini:hover { border-color: var(--accent); color: var(--accent); }
+  .ws-mini:disabled { opacity: .5; cursor: wait; }
+  .ws-roots { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+  .ws-roots .ws-mini.current { border-color: var(--accent); color: var(--accent); font-weight: 600; }
+  .ws-folders { display: flex; flex-direction: column; gap: 6px; }
+  .ws-frow {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--panel2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 10px;
+    font-size: 13px;
+  }
+  .ws-frow .pth {
+    flex: 1;
+    min-width: 120px;
+    font-family: "Cascadia Code", "Consolas", monospace;
+    font-size: 12.5px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .ws-panes {
+    display: grid;
+    grid-template-columns: 250px 1fr;
+    gap: 10px;
+    height: min(460px, 56vh);
+  }
+  .ws-files, .ws-edit { min-height: 0; }
+  .ws-edit { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+  .ws-edit .fname { font-size: 12.5px; color: var(--dim); display: flex; gap: 8px; align-items: center; }
+  .ws-edit .fname b { color: var(--text); font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ws-edit textarea {
+    flex: 1;
+    width: 100%;
+    resize: none;
+    background: var(--panel2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 8px;
+    padding: 11px;
+    outline: none;
+    font-family: "Cascadia Code", "Consolas", monospace;
+    font-size: 13px;
+    line-height: 1.5;
+    white-space: pre;
+    tab-size: 4;
+  }
+  .ws-edit textarea:focus { border-color: var(--accent); }
+  .ws-edit .efoot { display: flex; gap: 8px; align-items: center; }
+  .ws-edit .efoot .st { flex: 1; font-size: 11.5px; color: var(--faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ws-edit .placeholder {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--faint);
+    font-size: 12.5px;
+    border: 1px dashed var(--border2);
+    border-radius: 8px;
+    text-align: center;
+    padding: 20px;
+  }
+  .ws-edit .efoot button.save {
+    background: var(--accent);
+    color: #04222a;
+    border: none;
+    font-weight: 700;
+  }
+  .cb-bar button.sv:hover { border-color: var(--green); color: var(--green); }
+  #toast {
+    position: fixed;
+    left: 50%;
+    bottom: 26px;
+    transform: translateX(-50%) translateY(8px);
+    background: var(--panel);
+    border: 1px solid var(--accent);
+    color: var(--text);
+    padding: 9px 16px;
+    border-radius: 999px;
+    font-size: 12.5px;
+    opacity: 0;
+    pointer-events: none;
+    transition: .2s ease;
+    z-index: 90;
+    max-width: 80vw;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  #toast.show { opacity: 1; transform: translateX(-50%); box-shadow: 0 12px 34px rgba(0,0,0,.45); }
+  @media (max-width: 760px) {
+    .ws-panes { grid-template-columns: 1fr; height: auto; }
+    .ws-files { height: 170px; }
+    .ws-edit textarea { height: 240px; flex: none; }
+    .ws-edit .placeholder { min-height: 160px; }
+  }
+
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 5px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+
+  @media (max-width: 760px) {
+    #sidebar { position: fixed; z-index: 40; height: 100vh; }
+    #sidebar.hidden { margin-left: calc(-1 * var(--side-w)); }
+    #model-pill { max-width: 34vw; }
+    #brand { display: none; }
+    .cbar-hint { display: none; }
+    .ddmenu { min-width: 240px; }
+  }
+</style>
+</head>
+<body>
+<div id="app">
+
+  <aside id="sidebar">
+    <div class="side-head">
+      <div class="logo">OpenLink <b>AI</b><span> ●</span></div>
+      <button id="newchat">＋ New session</button>
+    </div>
+    <div id="sess-list"></div>
+    <div class="side-foot">
+      <div class="row">
+        <button class="badge" id="status">connecting…</button>
+        <button class="iconbtn" id="theme-btn" title="Toggle theme">◐</button>
+      </div>
+    </div>
+  </aside>
+
+  <div id="main">
+    <div id="topbar">
+      <button id="toggleside" title="Toggle sidebar">☰</button>
+      <span id="brand">Openlink <b>AI</b></span>
+      <span id="sess-title">New session</span>
+      <div class="dd" id="file-dd">
+        <button class="ddbtn" id="file-pill" aria-haspopup="true" aria-expanded="false"
+                title="File menu">File ▾</button>
+        <div class="ddmenu" id="file-menu" role="menu">
+          <div class="mhead">File</div>
+          <button data-file="new"><i>＋ New File</i><em>create a file in the workspace</em></button>
+          <button data-file="newfolder"><i>＋ New Folder</i><em>create a folder in the workspace</em></button>
+          <button data-file="window"><i>⧉ New Window</i><em>open OpenLink AI in another window</em></button>
+          <button data-file="open"><i>Open File…</i><em>read or edit a workspace file</em></button>
+          <button data-file="folder"><i>Open Folder…</i><em>switch to a different folder</em></button>
+          <button data-file="workspace"><i>Open Workspace</i><em>see the folders you work in</em></button>
+          <button data-file="add"><i>Add Folder to Workspace…</i><em>keep the current folders</em></button>
+        </div>
+      </div>
+      <button id="ws-pill" title="Open a folder to work in">📁 folder…</button>
+      <button id="model-pill" title="Change model">model…</button>
+    </div>
+
+    <div id="chat">
+      <div class="chat-inner" id="chat-inner">
+        <div id="welcome">
+          <h2>OpenLink <b>AI</b></h2>
+          <p>A local AI assistant in your browser. Open a folder with 📁 to work on files directly, and ask anything — if I write HTML code, I'll add a Preview button so you can see it live.</p>
+          <div class="sugg">
+            <button data-s="Explain how HTTPS works in simple terms">Explain HTTPS simply</button>
+            <button data-s="Write a Python script that renames all files in a folder">Rename files script</button>
+            <button data-s="Design a landing page for a coffee shop (HTML)">Landing page HTML</button>
+            <button data-s="Help me debug this code: ">Debug my code</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <footer>
+      <div class="composer">
+        <div id="attach-list"></div>
+        <textarea id="input" placeholder="Ask me anything…" autofocus></textarea>
+        <div class="ctl-row">
+          <button class="ghost add" id="addprov" title="Add a new AI provider">＋</button>
+          <button class="ghost" id="attach" title="Attach a file to analyze or edit">📎</button>
+          <button class="send" id="send">Send</button>
+        </div>
+      </div>
+
+      <div class="cbar">
+        <div class="dd" id="mode-dd">
+          <button class="ddbtn" id="mode-pill" aria-haspopup="true" aria-expanded="false"
+                  title="Select how the assistant should work">◈ Build ▾</button>
+          <div class="ddmenu" id="mode-menu" role="menu">
+            <div class="mhead">Mode</div>
+            <button data-mode="build"><i>◈ Build</i><em>edit files, run tools, finish the job</em></button>
+            <button data-mode="plan"><i>◇ Plan</i><em>read-only — propose the steps first</em></button>
+            <button data-mode="ask"><i>○ Ask</i><em>answer questions, change nothing</em></button>
+          </div>
+        </div>
+
+        <div class="dd" id="prov-dd">
+          <button class="ddbtn" id="provider-pill" aria-haspopup="true" aria-expanded="false"
+                  title="Select the AI provider">Provider ▾</button>
+          <div class="ddmenu" id="provider-menu" role="menu">
+            <div class="mhead">Provider</div>
+          </div>
+        </div>
+
+        <button class="ddbtn off" id="shell-pill"
+                title="Let the AI run PowerShell commands in your trusted folder">⚡ shell off</button>
+
+        <span class="cbar-fill"></span>
+        <span class="cbar-hint">Enter to send · Shift+Enter for new line</span>
+      </div>
+
+      <input type="file" id="fileinput" multiple hidden>
+    </footer>
+  </div>
+</div>
+
+<div class="overlay" id="modal">
+  <div class="modal-box">
+    <button class="modal-close" onclick="closeModal()">✕</button>
+    <h2>Select model</h2>
+    <div id="prov-list"></div>
+  </div>
+</div>
+
+<div class="overlay" id="addmodal">
+  <div class="modal-box">
+    <button class="modal-close" onclick="closeAddModal()">✕</button>
+    <h2>+ Add provider</h2>
+    <form class="pform" id="provform">
+      <div class="row">
+        <label>Provider name
+          <input id="f-label" placeholder="My AI" autocomplete="off" required>
+        </label>
+        <label>API key (optional for local)
+          <input id="f-key" type="password" placeholder="sk-…" autocomplete="off">
+        </label>
+      </div>
+      <label>Base URL (OpenAI-compatible)
+        <input id="f-url" placeholder="https://api.example.com/v1" autocomplete="off" required>
+      </label>
+      <label>Models — comma separated
+        <span class="mrow">
+          <input id="f-models" placeholder="model-a, model-b, model-c" autocomplete="off" required>
+          <button type="button" class="ghost" id="f-fetch" title="Load the model list from this provider">Fetch models</button>
+        </span>
+      </label>
+      <label>Default model (blank = first model)
+        <input id="f-model" placeholder="model-a" autocomplete="off">
+      </label>
+      <p class="pform-note">Any OpenAI-compatible API works: OpenAI, OpenRouter, Groq, Ollama,
+        LM Studio, vLLM, together.ai, your own server, etc.</p>
+      <p class="pform-err" id="f-err"></p>
+      <div class="pform-actions">
+        <button type="button" class="ghost" onclick="closeAddModal()">Cancel</button>
+        <button type="submit" class="send">Add provider</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="overlay" id="wsmodal">
+  <div class="modal-box" id="ws-box">
+    <button class="modal-close" onclick="closeWs()">✕</button>
+    <h2 id="ws-title">Open folder</h2>
+
+    <div class="pform ws-view" id="ws-pick">
+      <label>Folder path
+        <span class="mrow">
+          <input id="ws-path" placeholder="E:\hello world" autocomplete="off" spellcheck="false">
+          <button type="button" id="ws-newfolder" title="Create a new folder here">＋ New folder</button>
+          <button type="button" id="ws-browse-btn">Browse…</button>
+        </span>
+      </label>
+      <div class="ws-crumb" id="ws-crumb" hidden></div>
+      <div class="ws-list" id="ws-dirlist" hidden></div>
+      <p class="pform-note" id="ws-pick-note">Type a full path (for example <b>E:\hello world</b>) or browse to it.
+        Nothing is read or changed until you trust the folder.</p>
+      <p class="pform-err" id="ws-err"></p>
+      <div class="pform-actions">
+        <button type="button" class="ghost" onclick="closeWs()">Cancel</button>
+        <button type="button" class="send" id="ws-continue">Continue</button>
+      </div>
+    </div>
+
+    <div class="pform ws-view" id="ws-trust" hidden>
+      <div class="ws-root">
+        <span class="pth" id="ws-trust-path"></span>
+        <span class="trust-tag no">not trusted yet</span>
+      </div>
+      <p class="pform-note">Trust this folder? OpenLink AI will be able to list, read and
+        save files inside it while you work here. Only continue if you know and trust this
+        location — never a folder you downloaded from someone you do not trust.</p>
+      <div class="pform-actions">
+        <button type="button" class="ghost" id="ws-back">Back</button>
+        <button type="button" class="send" id="ws-trust-btn">Trust folder</button>
+      </div>
+    </div>
+
+    <div class="pform ws-view" id="ws-active" hidden>
+      <div class="ws-root" id="ws-active-root">
+        <span class="pth" id="ws-active-path"></span>
+        <span class="trust-tag" id="ws-active-trust">Trusted ✓</span>
+      </div>
+      <div class="ws-folders" id="ws-folders" hidden></div>
+      <p class="pform-note" id="ws-active-note"></p>
+      <div class="pform-actions">
+        <button type="button" class="ghost" id="ws-remove">Remove &amp; untrust</button>
+        <button type="button" class="ghost" id="ws-add" title="Add another folder to this workspace">＋ Add folder</button>
+        <button type="button" class="ghost" id="ws-change">Change folder</button>
+        <button type="button" class="ghost" id="ws-vscode" title="Open this folder in Visual Studio Code">Open in VS Code</button>
+        <button type="button" class="send" id="ws-explore">Open file explorer</button>
+      </div>
+    </div>
+
+    <div class="pform ws-view" id="ws-explorer" hidden>
+      <div class="ws-exp">
+        <div class="ws-exp-head">
+          <span class="ttl">Files</span>
+          <span class="trust-tag" id="ws-exp-trust">Trusted ✓</span>
+          <span class="fill"></span>
+          <button type="button" class="ws-mini" id="ws-newfile" title="Create a new file in this folder">＋ New file</button>
+          <button type="button" class="ws-mini" id="ws-newfolder-ex" title="Create a new folder in this folder">＋ New folder</button>
+          <button type="button" class="ws-mini" id="ws-refresh" title="Reload this folder">⟳</button>
+          <button type="button" class="ws-mini" id="ws-expback">Back</button>
+        </div>
+        <div class="ws-roots" id="ws-roots" hidden></div>
+        <div class="ws-crumb" id="ws-ecrumb"></div>
+        <p class="pform-err" id="ws-exp-err"></p>
+        <div class="ws-panes">
+          <div class="ws-files" id="ws-files"></div>
+          <div class="ws-edit">
+            <div class="placeholder" id="ws-placeholder">Select a file to read or edit it.</div>
+            <div class="fname" id="ws-fname" hidden><b id="ws-fname-t"></b></div>
+            <textarea id="ws-ta" hidden spellcheck="false" wrap="off"></textarea>
+            <div class="efoot" id="ws-efoot" hidden>
+              <span class="st" id="ws-status"></span>
+              <button type="button" class="ws-mini" id="ws-attach">Attach to chat</button>
+              <button type="button" class="ws-mini save" id="ws-save">Save</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="wsnewmodal">
+  <div class="modal-box">
+    <button class="modal-close" id="wsnew-close">✕</button>
+    <h2 id="wsnew-title">New file</h2>
+    <div class="pform">
+      <label>Where — pick a drive or a folder
+        <span class="mrow">
+          <input id="wsnew-loc" placeholder="E:\projects" autocomplete="off" spellcheck="false">
+          <button type="button" id="wsnew-drives-btn" title="Show the drives on this computer">Drives</button>
+          <button type="button" id="wsnew-ws-btn" title="Jump to the open workspace folder">📁 Workspace</button>
+        </span>
+      </label>
+      <div class="ws-roots" id="wsnew-drivebar" hidden></div>
+      <div class="ws-crumb" id="wsnew-crumb" hidden></div>
+      <div class="ws-list ws-newlist" id="wsnew-dirs" hidden></div>
+      <label>Name
+        <input id="wsnew-name" placeholder="main.py" autocomplete="off" spellcheck="false">
+      </label>
+      <p class="pform-note" id="wsnew-note">You can also type a full path in “Where”, for example
+        <b>D:\backup\notes</b>. Nothing is created until you press Create.</p>
+      <p class="pform-err" id="wsnew-err"></p>
+      <div class="pform-actions">
+        <button type="button" class="ghost" id="wsnew-cancel">Cancel</button>
+        <button type="button" class="send" id="wsnew-ok">Create</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="pvmodal">
+  <div class="pv-box">
+    <div class="pv-head">
+      <span id="pv-title">Preview</span>
+      <button id="pv-newtab">open new tab</button>
+      <button onclick="closePv()">✕ close</button>
+    </div>
+    <iframe id="pv-frame" sandbox="allow-scripts"></iframe>
+    <pre id="pv-code"></pre>
+  </div>
+</div>
+
+<script>
+  const chatInner = document.getElementById("chat-inner");
+  const input = document.getElementById("input");
+  const sendBtn = document.getElementById("send");
+  const status = document.getElementById("status");
+  const sessTitleEl = document.getElementById("sess-title");
+  const modelPill = document.getElementById("model-pill");
+  let cfg = null;
+  let busy = false;
+  let chatAbort = null;
+  let escLast = 0;
+  const codeStore = {};
+  let msgSeq = 0;
+  let attachments = [];
+
+  /* ---------------- sessions (localStorage) ---------------- */
+  const LS_SESS = "openlink.sessions";
+  const LS_ACTIVE = "openlink.activeSession";
+  const LS_THEME = "openlink.theme";
+  let sessions = [];
+  let activeId = null;
+
+  function loadSessions() {
+    try { sessions = JSON.parse(localStorage.getItem(LS_SESS)) || []; }
+    catch { sessions = []; }
+    if (!Array.isArray(sessions)) sessions = [];
+    activeId = localStorage.getItem(LS_ACTIVE) || null;
+    if (activeId && !sessions.some(s => s.id === activeId)) activeId = null;
+    if (!activeId && sessions.length) activeId = sessions[0].id;
+  }
+
+  function saveSessions() {
+    localStorage.setItem(LS_SESS, JSON.stringify(sessions));
+    if (activeId) localStorage.setItem(LS_ACTIVE, activeId);
+    else localStorage.removeItem(LS_ACTIVE);
+  }
+
+  function activeSession() {
+    return sessions.find(s => s.id === activeId) || null;
+  }
+
+  function newSessionId() {
+    return "s" + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+  }
+
+  function createSession() {
+    const s = { id: newSessionId(), title: "New session", created: Date.now(), updated: Date.now(), messages: [] };
+    sessions.unshift(s);
+    activeId = s.id;
+    saveSessions();
+    renderSessions();
+    renderChat();
+    return s;
+  }
+
+  function switchSession(id) {
+    if (busy || id === activeId) return;
+    activeId = id;
+    saveSessions();
+    renderSessions();
+    renderChat();
+  }
+
+  function deleteSession(id) {
+    const s = sessions.find(x => x.id === id);
+    if (!s) return;
+    if (!confirm('Delete session "' + s.title + '"?')) return;
+    sessions = sessions.filter(x => x.id !== id);
+    if (activeId === id) activeId = sessions.length ? sessions[0].id : null;
+    saveSessions();
+    renderSessions();
+    renderChat();
+  }
+
+  function groupLabel(ts) {
+    const d = new Date(ts), now = new Date();
+    const day = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    if (day === today) return "Today";
+    if (day === today - 86400000) return "Yesterday";
+    if (day > today - 7 * 86400000) return "Previous 7 days";
+    return "Older";
+  }
+
+  function renderSessions() {
+    const box = document.getElementById("sess-list");
+    box.innerHTML = "";
+    if (!sessions.length) {
+      const p = document.createElement("div");
+      p.className = "sess-group";
+      p.textContent = "No sessions yet";
+      box.appendChild(p);
+      return;
+    }
+    const sorted = [...sessions].sort((a, b) => b.updated - a.updated);
+    let lastGroup = null;
+    for (const s of sorted) {
+      const g = groupLabel(s.updated);
+      if (g !== lastGroup) {
+        lastGroup = g;
+        const gh = document.createElement("div");
+        gh.className = "sess-group";
+        gh.textContent = g;
+        box.appendChild(gh);
+      }
+      const row = document.createElement("div");
+      row.className = "sess" + (s.id === activeId ? " active" : "");
+      const st = document.createElement("span");
+      st.className = "st";
+      st.textContent = s.title || "New session";
+      st.title = s.title;
+      const del = document.createElement("button");
+      del.className = "del";
+      del.textContent = "✕";
+      del.title = "Delete session";
+      del.onclick = e => { e.stopPropagation(); deleteSession(s.id); };
+      row.append(st, del);
+      row.onclick = () => switchSession(s.id);
+      box.appendChild(row);
+    }
+  }
+
+  /* ---------------- chat rendering ---------------- */
+  function addMsg(cls) {
+    const el = document.createElement("div");
+    el.className = "msg " + cls;
+    el.dataset.ck = String(++msgSeq);
+    chatInner.appendChild(el);
+    scrollDown();
+    return el;
+  }
+
+  function scrollDown() {
+    const chat = document.getElementById("chat");
+    chat.scrollTop = chat.scrollHeight;
+  }
+
+  function renderChat() {
+    chatInner.innerHTML = "";
+    msgSeq = 0;
+    const s = activeSession();
+    sessTitleEl.textContent = s ? (s.title || "New session") : "New session";
+    if (!s || !s.messages.length) {
+      chatInner.innerHTML =
+        '<div id="welcome">' +
+        "<h2>OpenLink <b>AI</b></h2>" +
+        "<p>A local AI assistant in your browser. Open a folder with 📁 to work on files directly, and ask anything — if I write HTML code, I'll add a Preview button so you can see it live.</p>" +
+        '<div class="sugg">' +
+        '<button data-s="Explain how HTTPS works in simple terms">Explain HTTPS simply</button>' +
+        '<button data-s="Write a Python script that renames all files in a folder">Rename files script</button>' +
+        '<button data-s="Design a landing page for a coffee shop (HTML)">Landing page HTML</button>' +
+        '<button data-s="Help me debug this code: ">Debug my code</button>' +
+        "</div></div>";
+      bindSugg();
+      return;
+    }
+    for (const m of s.messages) {
+      const el = addMsg(m.role === "user" ? "user" : "assistant");
+      if (m.role === "user") el.textContent = m.content;
+      else renderRich(el, m.content);
+    }
+    scrollDown();
+  }
+
+  function bindSugg() {
+    document.querySelectorAll(".sugg button").forEach(b => {
+      b.onclick = () => {
+        input.value = b.dataset.s;
+        autoGrow();
+        input.focus();
+      };
+    });
+  }
+
+  /* ---------------- config / providers ---------------- */
+  function setBadge(c) {
+    status.textContent = c.model + " · " + c.provider + (c.ready ? "" : " · no key");
+    status.className = "badge " + (c.ready ? "ready" : "notready");
+    modelPill.textContent = c.model ? (c.model + (c.ready ? "" : " ⚠")) : "choose model";
+    const pp = document.getElementById("provider-pill");
+    if (pp) {
+      let label = c.provider || "Provider";
+      if (label.length > 18) label = label.slice(0, 17) + "…";
+      pp.textContent = label + " ▾";
+    }
+  }
+
+  function autoGrow() {
+    input.style.height = "auto";
+    input.style.height = Math.min(Math.max(input.scrollHeight, 56), 260) + "px";
+  }
+  input.addEventListener("input", autoGrow);
+
+  async function loadConfig() {
+    try {
+      const res = await fetch("/api/config");
+      cfg = await res.json();
+      setBadge(cfg);
+      renderProviders();
+      ws = cfg.workspace || null;
+      renderWsPill();
+      renderShell();
+    } catch {
+      status.textContent = "server offline";
+      status.className = "badge notready";
+    }
+  }
+
+  function renderProviders() {
+    const box = document.getElementById("prov-list");
+    box.innerHTML = "";
+    if (!cfg) return;
+    for (const p of cfg.providers) {
+      const div = document.createElement("div");
+      div.className = "prov";
+      const head = document.createElement("div");
+      head.className = "prov-head";
+      head.innerHTML =
+        "<span>" + esc(p.label) + "</span>" +
+        (p.active ? '<span class="active-prov">active</span>' : "") +
+        (p.has_key ? "" : '<span class="nokey">no key</span>');
+      if (!p.has_key) {
+        const kb = document.createElement("button");
+        kb.type = "button";
+        kb.className = "prov-key";
+        kb.textContent = "add key";
+        kb.onclick = () => addKey(p);
+        head.appendChild(kb);
+      }
+      if (p.custom) {
+        const del = document.createElement("button");
+        del.type = "button";
+        del.className = "prov-del";
+        del.textContent = "remove";
+        del.onclick = () => removeProvider(p.id, p.label);
+        head.appendChild(del);
+      }
+      div.appendChild(head);
+      const list = document.createElement("div");
+      list.className = "models";
+      for (const m of p.models) {
+        const b = document.createElement("button");
+        b.textContent = m;
+        if (p.id === cfg.provider_id && m === cfg.model) b.className = "current";
+        b.onclick = () => selectModel(p.id, m);
+        list.appendChild(b);
+      }
+      if (!p.models.length) {
+        const sp = document.createElement("span");
+        sp.style.cssText = "font-size:12px;color:var(--faint)";
+        sp.textContent = "(no preset models)";
+        list.appendChild(sp);
+      }
+      div.appendChild(list);
+      box.appendChild(div);
+    }
+  }
+
+  async function addKey(p) {
+    const hint = p.key_url ? "\n\nGet a free key: " + p.key_url : "";
+    const k = prompt("Enter API key for " + p.label + hint);
+    if (!k || !k.trim()) return;
+    const res = await fetch("/api/keys", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ provider: p.id, api_key: k.trim() }),
+    });
+    const data = await res.json();
+    if (data.error) { alert(data.error); return; }
+    await loadConfig();
+  }
+
+  async function selectModel(provider, model) {
+    const res = await fetch("/api/select", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ provider, model }),
+    });
+    const data = await res.json();
+    if (data.error) { alert(data.error); return; }
+    cfg.provider_id = data.provider_id;
+    cfg.provider = data.provider;
+    cfg.model = data.model;
+    cfg.ready = data.ready;
+    setBadge(cfg);
+    for (const p of cfg.providers) p.active = p.id === data.provider_id;
+    renderProviders();
+    closeModal();
+  }
+
+  function closeModal() { document.getElementById("modal").classList.remove("open"); }
+  function openModal() {
+    if (!cfg) return;
+    renderProviders();
+    document.getElementById("modal").classList.add("open");
+  }
+  status.addEventListener("click", openModal);
+  modelPill.addEventListener("click", openModal);
+  document.getElementById("modal").addEventListener("click", e => {
+    if (e.target.id === "modal") closeModal();
+  });
+
+  /* ---------------- mode / provider bar ---------------- */
+  const LS_MODE = "openlink.mode";
+  const MODE_LABEL = { build: "◈ Build", plan: "◇ Plan", ask: "○ Ask" };
+  let mode = localStorage.getItem(LS_MODE) || "build";
+  if (!MODE_LABEL[mode]) mode = "build";
+
+  const modePill = document.getElementById("mode-pill");
+  const modeMenu = document.getElementById("mode-menu");
+  const provPill = document.getElementById("provider-pill");
+  const provMenu = document.getElementById("provider-menu");
+
+  function closeMenus() {
+    document.querySelectorAll(".dd.open").forEach(d => {
+      d.classList.remove("open");
+      const b = d.querySelector(".ddbtn");
+      if (b) b.setAttribute("aria-expanded", "false");
+    });
+  }
+
+  function toggleMenu(dd) {
+    const wasOpen = dd.classList.contains("open");
+    closeMenus();
+    if (!wasOpen) {
+      dd.classList.add("open");
+      dd.querySelector(".ddbtn").setAttribute("aria-expanded", "true");
+    }
+  }
+
+  function renderMode() {
+    modePill.textContent = MODE_LABEL[mode] + " ▾";
+    modeMenu.querySelectorAll("button").forEach(b =>
+      b.classList.toggle("current", b.dataset.mode === mode)
+    );
+  }
+
+  function renderProviderMenu() {
+    provMenu.innerHTML = '<div class="mhead">Provider</div>';
+    if (!cfg) {
+      const off = document.createElement("button");
+      off.innerHTML = "<i>Server offline</i><em>restart Openlink AI to pick a provider</em>";
+      off.onclick = closeMenus;
+      provMenu.appendChild(off);
+      return;
+    }
+    for (const p of cfg.providers) {
+      const b = document.createElement("button");
+      const model = p.active && cfg.model ? cfg.model : (p.models[0] || "");
+      const sub = (p.has_key ? "" : "no key · ") + (model || "no models");
+      b.innerHTML = "<i>" + esc(p.label) + "</i><em>" + esc(sub) + "</em>";
+      if (!p.has_key) b.classList.add("nokey");
+      if (p.active) b.classList.add("current");
+      b.onclick = () => {
+        closeMenus();
+        if (!p.active) selectModel(p.id, p.models[0] || "");
+      };
+      provMenu.appendChild(b);
+    }
+    const more = document.createElement("button");
+    more.innerHTML = "<i>All providers &amp; models…</i><em>open the full selector</em>";
+    more.onclick = () => { closeMenus(); openModal(); };
+    provMenu.appendChild(more);
+  }
+
+  modePill.addEventListener("click", e => {
+    e.stopPropagation();
+    toggleMenu(document.getElementById("mode-dd"));
+  });
+  modeMenu.querySelectorAll("button").forEach(b => {
+    b.addEventListener("click", () => {
+      mode = b.dataset.mode;
+      localStorage.setItem(LS_MODE, mode);
+      renderMode();
+      closeMenus();
+      input.focus();
+    });
+  });
+
+  provPill.addEventListener("click", e => {
+    e.stopPropagation();
+    renderProviderMenu();
+    toggleMenu(document.getElementById("prov-dd"));
+  });
+
+  function fileAction(kind) {
+    if (kind === "window") {
+      window.open(location.href, "_blank", "noopener");
+      return;
+    }
+    if (kind === "folder") { openWs("ws-pick"); return; }
+    if (kind === "workspace") { openWs(); return; }
+    if (kind === "add") {
+      if (!ws || !ws.trusted) {
+        openWs("ws-pick");
+        wsErr("Open and trust a folder first — then you can add more folders.");
+        return;
+      }
+      openWs("ws-pick", "add");
+      return;
+    }
+    if (!ws || !ws.trusted) {
+      openWs("ws-pick");
+      wsErr("Open and trust a folder first — files live inside it.");
+      return;
+    }
+    if (kind === "open") {
+      openWs("ws-explorer");
+      return;
+    }
+    if (kind === "newfolder") {
+      openWs("ws-explorer");
+      setTimeout(() => openNewDialog("folder"), 80);
+      return;
+    }
+    /* new file */
+    openWs("ws-explorer");
+    setTimeout(() => openNewDialog("file"), 80);
+  }
+
+  document.getElementById("file-pill").addEventListener("click", e => {
+    e.stopPropagation();
+    toggleMenu(document.getElementById("file-dd"));
+  });
+  document.getElementById("file-menu").querySelectorAll("button").forEach(b => {
+    b.addEventListener("click", () => {
+      closeMenus();
+      fileAction(b.dataset.file);
+    });
+  });
+
+  document.addEventListener("click", e => {
+    if (!e.target.closest(".dd")) closeMenus();
+  });
+  document.addEventListener("keydown", e => {
+    if (e.key === "Escape") {
+      closeMenus();
+      closeModal();
+      closeWs();
+      closeWsNew();
+      const now = Date.now();
+      if (busy && now - escLast <= 900) { escLast = 0; stopWork(); }
+      else escLast = now;
+    }
+  });
+
+  renderMode();
+
+  const addModal = document.getElementById("addmodal");
+  const provForm = document.getElementById("provform");
+  const formErr = document.getElementById("f-err");
+
+  function openAddModal() {
+    formErr.textContent = "";
+    formErr.style.color = "";
+    provForm.reset();
+    addModal.classList.add("open");
+    document.getElementById("f-label").focus();
+  }
+  function closeAddModal() { addModal.classList.remove("open"); }
+  document.getElementById("addprov").addEventListener("click", openAddModal);
+  addModal.addEventListener("click", e => { if (e.target.id === "addmodal") closeAddModal(); });
+
+  function setFormNote(msg, ok) {
+    formErr.textContent = msg;
+    formErr.style.color = ok ? "var(--green)" : "var(--err-text)";
+  }
+
+  async function fetchModels(auto) {
+    const base = document.getElementById("f-url").value.trim();
+    const key = document.getElementById("f-key").value.trim();
+    const modelsField = document.getElementById("f-models");
+    if (!base) {
+      if (!auto) setFormNote("Enter the base URL first.", false);
+      return;
+    }
+    if (auto && modelsField.value.trim()) return;
+    const btn = document.getElementById("f-fetch");
+    btn.disabled = true;
+    btn.textContent = "Loading…";
+    try {
+      const res = await fetch("/api/models", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ base_url: base, api_key: key }),
+      });
+      const data = await res.json();
+      if (!res.ok || data.error) throw new Error(data.error || "HTTP " + res.status);
+      modelsField.value = data.models.join(", ");
+      const def = document.getElementById("f-model");
+      if (!def.value.trim()) def.value = data.models[0];
+      setFormNote("Loaded " + data.models.length + " models from the provider — edit if you like.", true);
+    } catch (err) {
+      if (!auto) setFormNote(err.message, false);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = "Fetch models";
+    }
+  }
+  document.getElementById("f-fetch").addEventListener("click", () => fetchModels(false));
+  document.getElementById("f-url").addEventListener("blur", () => fetchModels(true));
+
+  provForm.addEventListener("submit", async e => {
+    e.preventDefault();
+    formErr.textContent = "";
+    const label = document.getElementById("f-label").value.trim();
+    const base_url = document.getElementById("f-url").value.trim();
+    const api_key = document.getElementById("f-key").value.trim();
+    const models = document.getElementById("f-models").value
+      .split(",").map(s => s.trim()).filter(Boolean);
+    const model = document.getElementById("f-model").value.trim();
+    if (!label || !base_url || !models.length) {
+      setFormNote("Name, base URL and at least one model are required.", false);
+      return;
+    }
+    const btn = provForm.querySelector("button.send");
+    btn.disabled = true;
+    btn.textContent = "Adding…";
+    try {
+      const res = await fetch("/api/providers", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ label, base_url, api_key, models, model }),
+      });
+      const data = await res.json();
+      if (!res.ok || data.error) throw new Error(data.error || "HTTP " + res.status);
+      closeAddModal();
+      await loadConfig();
+      addMsg("assistant").textContent =
+        'Provider "' + data.provider + '" added and selected (model: ' + data.model + ").";
+      selectModel(data.provider_id, data.model);
+    } catch (err) {
+      setFormNote(err.message, false);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = "Add provider";
+    }
+  });
+
+  async function removeProvider(pid, label) {
+    if (!confirm('Remove provider "' + label + '" from OpenLink AI?')) return;
+    const res = await fetch("/api/providers/remove", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ provider: pid }),
+    });
+    const data = await res.json();
+    if (data.error) { alert(data.error); return; }
+    closeModal();
+    await loadConfig();
+  }
+
+  /* ---------------- rich rendering ---------------- */
+  function esc(s) {
+    return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  }
+
+  function inlineFmt(s) {
+    let h = esc(s);
+    h = h.replace(/`([^`\n]+)`/g, '<code class="ic">$1</code>');
+    h = h.replace(/\*\*([^*\n]+)\*\*/g, "<b>$1</b>");
+    h = h.replace(/(^|\n)(#{1,6} .+)/g, "$1<b>$2</b>");
+    return h;
+  }
+
+  function renderRich(el, text) {
+    const key = el.dataset.ck || "0";
+    const stored = [];
+    const parts = text.split("```");
+    let html = "";
+    for (let i = 0; i < parts.length; i++) {
+      if (i % 2 === 0) {
+        html += inlineFmt(parts[i]);
+      } else {
+        let block = parts[i];
+        let lang = "";
+        const nl = block.indexOf("\n");
+        if (nl > -1 && nl < 24) {
+          const first = block.slice(0, nl).trim();
+          if (/^[a-zA-Z0-9+#._-]*$/.test(first)) {
+            lang = first.toLowerCase();
+            block = block.slice(nl + 1);
+          }
+        }
+        const ci = stored.push(block.replace(/\n$/, "")) - 1;
+        html +=
+          '<div class="cb"><div class="cb-bar"><span class="lang">' + esc(lang || "code") +
+          '</span><button onclick="copyCode(this,' + key + ',' + ci + ')">Copy</button>' +
+          '<button class="pv" onclick="previewCode(' + key + ',' + ci + ",'" + esc(lang) + '\')">Preview</button>' +
+          '<button class="sv" onclick="saveCode(' + key + ',' + ci + ')">Save</button>' +
+          "</div><pre><code>" + esc(block) + "</code></pre></div>";
+      }
+    }
+    codeStore[key] = stored;
+    el.innerHTML = html;
+  }
+
+  function copyCode(btn, key, i) {
+    navigator.clipboard.writeText((codeStore[key] || [])[i] || "").then(() => {
+      const t = btn.textContent;
+      btn.textContent = "Copied ✓";
+      setTimeout(() => (btn.textContent = t), 1200);
+    });
+  }
+
+  function previewCode(key, i, lang) {
+    const code = (codeStore[key] || [])[i] || "";
+    const isHtml = /html|htm/.test(lang || "") || /<!doctype html|<html[\s>]|<body[\s>]/i.test(code);
+    const frame = document.getElementById("pv-frame");
+    const pre = document.getElementById("pv-code");
+    const title = document.getElementById("pv-title");
+    if (isHtml) {
+      title.textContent = "Preview — HTML";
+      frame.style.display = "block";
+      pre.style.display = "none";
+      frame.srcdoc = code;
+      document.getElementById("pv-newtab").style.display = "";
+    } else {
+      title.textContent = "Preview — " + (lang || "code");
+      frame.style.display = "none";
+      pre.style.display = "block";
+      pre.textContent = code;
+      document.getElementById("pv-newtab").style.display = "none";
+    }
+    document.getElementById("pvmodal").classList.add("open");
+  }
+
+  function closePv() {
+    document.getElementById("pvmodal").classList.remove("open");
+    document.getElementById("pv-frame").srcdoc = "";
+  }
+  document.getElementById("pvmodal").addEventListener("click", e => {
+    if (e.target.id === "pvmodal") closePv();
+  });
+  document.getElementById("pv-newtab").addEventListener("click", () => {
+    const blob = new Blob([document.getElementById("pv-frame").srcdoc], { type: "text/html" });
+    window.open(URL.createObjectURL(blob), "_blank");
+  });
+
+  /* ---------------- send ---------------- */
+  function firstLine(text, n) {
+    const t = (text || "").replace(/\s+/g, " ").trim();
+    return t.length > n ? t.slice(0, n - 1) + "…" : t;
+  }
+
+  const HIST_MAX_MSGS = 20;
+  const HIST_MAX_CHARS = 6000;
+
+  function buildHistory() {
+    let msgs = activeSession()
+      ? activeSession().messages.map(m => ({ role: m.role, content: m.content }))
+      : [];
+    let dropped = 0, cut = 0;
+    if (msgs.length > HIST_MAX_MSGS) {
+      dropped = msgs.length - HIST_MAX_MSGS;
+      msgs = msgs.slice(-HIST_MAX_MSGS);
+    }
+    msgs = msgs.map(m => {
+      if ((m.content || "").length > HIST_MAX_CHARS) {
+        cut++;
+        return { role: m.role, content: m.content.slice(0, HIST_MAX_CHARS) + "\n…[truncated]" };
+      }
+      return m;
+    });
+    const parts = [];
+    if (dropped) parts.push(dropped + " older message(s) omitted");
+    if (cut) parts.push(cut + " long message(s) shortened");
+    return { messages: msgs, note: parts.join(" · ") };
+  }
+
+  const MODE_GLYPH = { build: "◈", plan: "◇", ask: "○" };
+
+  function modeSummary(m) {
+    const glyph = MODE_GLYPH[m.mode] || "";
+    const label = (glyph ? glyph + " " : "") + (m.mode_label || m.mode || "");
+    const tools = Array.isArray(m.tools) ? m.tools : [];
+    if (m.mode === "ask") return label + " · answer only — no files are touched";
+    if (!m.trusted) {
+      return label + " · no folder open — open one with 📁 so I can work on your files";
+    }
+    if (!tools.length) return label + " · answer only — no files are touched";
+    if (m.mode === "plan") {
+      return label + " · read-only (" + tools.join(", ") + ") — I'll propose the steps first";
+    }
+    return label + " · tools: " + tools.join(", ") + " · in " + (m.folder || "the workspace");
+  }
+
+  function stopWork() {
+    if (!chatAbort) return false;
+    chatAbort.abort();
+    toast("Stopping the reply…");
+    return true;
+  }
+
+  async function send() {
+    const text = input.value.trim();
+    const hasFiles = attachments.length > 0;
+    if ((!text && !hasFiles) || busy) return;
+
+    let s = activeSession();
+    if (!s) s = createSession();
+    if (!s.messages.length && text) {
+      s.title = firstLine(text, 48);
+      sessTitleEl.textContent = s.title;
+      renderSessions();
+    }
+
+    busy = true;
+    const ac = new AbortController();
+    chatAbort = ac;
+    sendBtn.disabled = false;
+    sendBtn.textContent = "■ Stop";
+    sendBtn.title = "Stop — or press ESC twice";
+    input.value = "";
+    autoGrow();
+
+    const welcome = document.getElementById("welcome");
+    if (welcome) welcome.remove();
+
+    const userEl = addMsg("user");
+    let userContent = text || "Analyze the attached files.";
+    userEl.textContent = userContent;
+    const history = buildHistory();
+    if (history.note) addMsg("note").textContent = history.note;
+    const payload = {
+      message: text,
+      history: history.messages,
+      files: attachments.map(a => ({ name: a.name, content: a.content })),
+      mode,
+    };
+    const bot = addMsg("assistant");
+    bot.innerHTML = '<span class="cursor"></span>';
+    let full = "";
+    let buf = "";
+    let queued = false;
+    let finished = false;
+    let modeShown = false;
+    let lastPaint = 0;
+
+    function paint(final) {
+      queued = false;
+      if (finished && !final) return;
+      lastPaint = performance.now();
+      renderRich(bot, full || (final ? "(no response)" : ""));
+      if (!final) {
+        const c = document.createElement("span");
+        c.className = "cursor";
+        bot.appendChild(c);
+      }
+      scrollDown();
+    }
+
+    function schedule() {
+      if (queued || finished) return;
+      queued = true;
+      const wait = Math.max(0, 60 - (performance.now() - lastPaint));
+      setTimeout(paint, wait);
+    }
+
+    const pump = () => {
+      const events = buf.split("\n\n");
+      buf = events.pop() || "";
+      for (const raw of events) {
+        const lines = raw.split("\n");
+        const ev = (lines.find(l => l.startsWith("event: ")) || "").slice(7);
+        const data = (lines.find(l => l.startsWith("data: ")) || "").slice(6);
+        if (!data) continue;
+        let obj;
+        try { obj = JSON.parse(data); } catch { continue; }
+        if (ev === "token") {
+          full += obj.text || "";
+          schedule();
+        } else if (ev === "tool") {
+          full += toolBlock(obj);
+          schedule();
+        } else if (ev === "meta") {
+          if (obj.user_message) {
+            userContent = obj.user_message;
+            if (hasFiles) renderRich(userEl, userContent);
+            else userEl.textContent = userContent;
+          }
+          if (obj.mode && !modeShown) {
+            modeShown = true;
+            const note = document.createElement("div");
+            note.className = "msg note";
+            note.dataset.ck = String(++msgSeq);
+            note.textContent = modeSummary(obj);
+            chatInner.insertBefore(note, bot);
+            scrollDown();
+          }
+        } else if (ev === "notice") {
+          addMsg("note").textContent = obj.message || "";
+        } else if (ev === "error") {
+          throw new Error(obj.message || "stream error");
+        }
+      }
+    };
+
+    try {
+      const res = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+        signal: ac.signal,
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || ("HTTP " + res.status));
+      }
+
+      attachments = [];
+      renderChips();
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      buf = "";
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) {
+          buf += decoder.decode();
+          break;
+        }
+        buf += decoder.decode(value, { stream: true });
+        pump();
+      }
+      if (buf.trim()) pump();
+
+      finished = true;
+      paint(true);
+      s.messages.push({ role: "user", content: userContent });
+      s.messages.push({ role: "assistant", content: full });
+      if (s.messages.length > 60) s.messages = s.messages.slice(-60);
+      s.updated = Date.now();
+      saveSessions();
+      renderSessions();
+    } catch (e) {
+      finished = true;
+      const aborted = !!(e && (e.name === "AbortError" || e.code === 20));
+      if (full) {
+        paint(true);
+        s.messages.push({ role: "user", content: userContent });
+        s.messages.push({ role: "assistant", content: full });
+        s.updated = Date.now();
+        saveSessions();
+        renderSessions();
+        addMsg(aborted ? "note" : "error").textContent = aborted
+          ? "Stopped by you — everything received so far is kept above."
+          : "Stopped early: " + e.message + " — everything received so far is kept above.";
+      } else if (aborted) {
+        bot.remove();
+        s.messages.push({ role: "user", content: userContent });
+        s.updated = Date.now();
+        saveSessions();
+        renderSessions();
+        addMsg("note").textContent = "Stopped before anything arrived.";
+      } else {
+        bot.remove();
+        addMsg("error").textContent = "Error: " + e.message;
+      }
+    } finally {
+      busy = false;
+      chatAbort = null;
+      sendBtn.disabled = false;
+      sendBtn.textContent = "Send";
+      sendBtn.title = "";
+      input.focus();
+    }
+  }
+
+  /* ---------------- attachments ---------------- */
+  const fileInput = document.getElementById("fileinput");
+  const attachList = document.getElementById("attach-list");
+  const MAX_FILE_CHARS = 200000;
+
+  document.getElementById("attach").addEventListener("click", () => fileInput.click());
+
+  fileInput.addEventListener("change", async () => {
+    const chosen = Array.from(fileInput.files || []);
+    fileInput.value = "";
+    for (const f of chosen) await addFile(f);
+  });
+
+  function fmtSize(n) {
+    return n < 1024 ? n + " ch" : (n / 1024).toFixed(1) + "k ch";
+  }
+
+  function renderChips() {
+    attachList.innerHTML = "";
+    attachments.forEach((a, i) => {
+      const chip = document.createElement("span");
+      chip.className = "chip";
+      const name = document.createElement("span");
+      name.className = "cname";
+      name.textContent = a.name;
+      name.title = a.name;
+      const size = document.createElement("span");
+      size.className = "csize";
+      size.textContent = fmtSize(a.content.length);
+      const del = document.createElement("button");
+      del.textContent = "✕";
+      del.title = "Remove attachment";
+      del.onclick = () => { attachments.splice(i, 1); renderChips(); };
+      chip.append(name, size, del);
+      attachList.appendChild(chip);
+    });
+  }
+
+  async function addFile(file) {
+    if (attachments.some(a => a.name === file.name && a.content.length === file.size)) {
+      addMsg("error").textContent = "'" + file.name + "' is already attached.";
+      return;
+    }
+    if (file.size > 1000000) {
+      addMsg("error").textContent =
+        "'" + file.name + "' is " + file.size + " bytes — limit is 1 MB.";
+      return;
+    }
+    let text = "";
+    try {
+      text = await file.text();
+    } catch {
+      addMsg("error").textContent = "Could not read '" + file.name + "'.";
+      return;
+    }
+    if (text.includes(String.fromCharCode(0))) {
+      addMsg("error").textContent =
+        "'" + file.name + "' is a binary file — upload text or code files only.";
+      return;
+    }
+    if (text.length > MAX_FILE_CHARS) {
+      addMsg("error").textContent =
+        "'" + file.name + "' has " + text.length +
+        " characters, over the " + MAX_FILE_CHARS + " character limit.";
+      return;
+    }
+    attachments.push({ name: file.name, content: text, size: file.size });
+    renderChips();
+  }
+
+  /* ---------------- workspace folder ---------------- */
+  let ws = null;
+  let wsPending = "";
+  let wsBrowseOpen = false;
+  let wsBrowseData = { path: "", parent: "", drives: [], entries: [] };
+  let wsListPath = "";
+  let wsFile = null;
+  let wsDirty = false;
+  let wsMode = "open";   /* "open" = switch folder · "add" = add to workspace */
+  let wsRoot = "";       /* absolute path of the explorer's active folder */
+
+  const wsModal = document.getElementById("wsmodal");
+  const wsBox = document.getElementById("ws-box");
+  const wsPill = document.getElementById("ws-pill");
+  const wsPathInput = document.getElementById("ws-path");
+  const wsTA = document.getElementById("ws-ta");
+
+  function toast(msg) {
+    let t = document.getElementById("toast");
+    if (!t) {
+      t = document.createElement("div");
+      t.id = "toast";
+      document.body.appendChild(t);
+    }
+    t.textContent = msg;
+    t.classList.add("show");
+    clearTimeout(t._t);
+    t._t = setTimeout(() => t.classList.remove("show"), 2800);
+  }
+
+  function wsBase(p) {
+    const parts = String(p || "").replace(/[\\/]+$/, "").split(/[\\/]/).filter(Boolean);
+    return parts.length ? parts[parts.length - 1] : String(p || "");
+  }
+
+  function wsJoin(dir, name) {
+    name = String(name || "").replace(/^[\\/]+/, "");
+    dir = String(dir || "").replace(/[\\/]+$/, "");
+    if (!dir) return name;
+    const sep = dir.includes("\\") || /^[A-Za-z]:$/.test(dir) ? "\\" : "/";
+    return dir + sep + name;
+  }
+
+  function isAbsPath(p) {
+    p = String(p || "");
+    return /^[A-Za-z]:[\\/]/.test(p) || /^[\\/]{1,2}/.test(p);
+  }
+
+  function renderWsPill() {
+    if (cfg) cfg.workspace = ws;
+    if (!ws || !ws.path) {
+      wsPill.textContent = "📁 folder…";
+      wsPill.title = "Open a folder to work in";
+      wsPill.classList.remove("trusted");
+      renderShell();
+      return;
+    }
+    const name = wsBase(ws.path);
+    wsPill.textContent = "📁 " + (name.length > 18 ? name.slice(0, 17) + "…" : name);
+    wsPill.title = (ws.trusted ? "Trusted folder: " : "Folder: ") + ws.path;
+    wsPill.classList.toggle("trusted", !!ws.trusted);
+    renderShell();
+  }
+
+  const WS_VIEWS = ["ws-pick", "ws-trust", "ws-active", "ws-explorer"];
+  const WS_TITLES = {
+    "ws-pick": "Open folder",
+    "ws-trust": "Trust this folder?",
+    "ws-active": "Workspace folder",
+    "ws-explorer": "Workspace files",
+  };
+
+  function wsTitleFor(view) {
+    if (view === "ws-pick") return wsMode === "add" ? "Add folder to workspace" : "Open folder";
+    if (view === "ws-trust") return wsMode === "add" ? "Add this folder?" : "Trust this folder?";
+    return WS_TITLES[view] || "Workspace";
+  }
+
+  function wsShow(view) {
+    WS_VIEWS.forEach(v => { document.getElementById(v).hidden = v !== view; });
+    wsBox.classList.toggle("wide", view === "ws-explorer");
+    document.getElementById("ws-title").textContent = wsTitleFor(view);
+  }
+
+  function wsErr(msg) { document.getElementById("ws-err").textContent = msg || ""; }
+  function wsExpErr(msg) { document.getElementById("ws-exp-err").textContent = msg || ""; }
+
+  async function wsFetch(route, body) {
+    const res = await fetch(route, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body || {}),
+    });
+    const data = await res.json().catch(() => ({}));
+    return { res, data };
+  }
+
+  function openWs(view, mode) {
+    wsMode = mode || "open";
+    wsModal.classList.add("open");
+    wsErr("");
+    view = view || (ws && ws.trusted && ws.exists ? "ws-active" : "ws-pick");
+    if (view === "ws-pick") wsStartPick();
+    else if (view === "ws-explorer") wsStartExplorer();
+    else if (view === "ws-active") { wsRenderActive(); wsShow("ws-active"); }
+    else wsShow(view);
+  }
+
+  function closeWs() { wsModal.classList.remove("open"); }
+
+  function wsStartPick() {
+    wsShow("ws-pick");
+    wsPathInput.value = wsMode === "add" ? "" : (ws && ws.path ? ws.path : "");
+    const note = document.getElementById("ws-pick-note");
+    if (wsMode === "add") {
+      note.innerHTML = "The folder is <b>added</b> to your workspace — the folders "
+        + "you already have stay. Nothing is read or changed until you trust it.";
+    } else {
+      note.innerHTML = 'Type a full path (for example <b>E:\\hello world</b>) or browse to it. '
+        + "Nothing is read or changed until you trust the folder.";
+    }
+    wsBrowseOpen = false;
+    document.getElementById("ws-crumb").hidden = true;
+    document.getElementById("ws-dirlist").hidden = true;
+    document.getElementById("ws-browse-btn").textContent = "Browse…";
+    setTimeout(() => { try { wsPathInput.focus(); if (wsMode !== "add") wsPathInput.select(); } catch {} }, 40);
+  }
+
+  function wsRenderCrumb(el, path, onPick) {
+    el.innerHTML = "";
+    const push = (label, p, cls) => {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.textContent = label;
+      if (cls) b.className = cls;
+      b.onclick = () => onPick(p);
+      el.appendChild(b);
+    };
+    push("⌂", "", "top");
+    if (path) {
+      const isWin = /^[A-Za-z]:/.test(path) || path.includes("\\");
+      const parts = String(path).split(/[\\/]+/).filter(Boolean);
+      let acc = "";
+      parts.forEach((part, i) => {
+        acc = i === 0 ? (isWin ? part : "/" + part) : acc + (isWin ? "\\" : "/") + part;
+        const s = document.createElement("span");
+        s.className = "sep";
+        s.textContent = "\\";
+        el.appendChild(s);
+        push(part, acc, i === parts.length - 1 ? "here" : "");
+      });
+    }
+  }
+
+  async function wsLoadBrowse(path) {
+    const { res, data } = await wsFetch("/api/workspace/browse", { path: path || "" });
+    if (!res.ok || data.error) { wsErr(data.error || "Cannot browse that location."); return; }
+    wsBrowseData = data;
+    wsBrowseOpen = true;
+    wsPathInput.value = data.path || "";
+    document.getElementById("ws-browse-btn").textContent = "Hide ▾";
+    wsRenderBrowse();
+  }
+
+  function wsRenderBrowse() {
+    const crumb = document.getElementById("ws-crumb");
+    const list = document.getElementById("ws-dirlist");
+    crumb.hidden = false;
+    list.hidden = false;
+    wsRenderCrumb(crumb, wsBrowseData.path, p => wsLoadBrowse(p));
+    list.innerHTML = "";
+    const showDrives = !wsBrowseData.path && wsBrowseData.drives.length;
+    const items = showDrives
+      ? wsBrowseData.drives.map(d => ({ name: d, full: d }))
+      : wsBrowseData.entries.map(e => ({ name: e.name, full: wsJoin(wsBrowseData.path, e.name) }));
+    if (!items.length) {
+      list.innerHTML = '<div class="ws-empty">No sub-folders here.</div>';
+      return;
+    }
+    for (const it of items) {
+      const row = document.createElement("button");
+      row.type = "button";
+      row.className = "ws-row";
+      row.innerHTML = '<span class="ic">📁</span><span class="nm"></span>';
+      row.querySelector(".nm").textContent = it.name;
+      row.title = it.full;
+      row.onclick = () => wsLoadBrowse(it.full);
+      list.appendChild(row);
+    }
+  }
+
+  document.getElementById("ws-browse-btn").addEventListener("click", () => {
+    if (wsBrowseOpen) {
+      wsBrowseOpen = false;
+      document.getElementById("ws-crumb").hidden = true;
+      document.getElementById("ws-dirlist").hidden = true;
+      document.getElementById("ws-browse-btn").textContent = "Browse…";
+    } else {
+      wsLoadBrowse(wsPathInput.value.trim() || "");
+    }
+  });
+
+  document.getElementById("ws-newfolder").addEventListener("click", () => openNewDialog("folder"));
+
+  async function wsContinue() {
+    const raw = wsPathInput.value.trim();
+    if (!raw) { wsErr("Enter a folder path first."); return; }
+    wsErr("");
+    const btn = document.getElementById("ws-continue");
+    const route = wsMode === "add" ? "/api/workspace/add" : "/api/workspace/select";
+    btn.disabled = true;
+    btn.textContent = "Checking…";
+    try {
+      const { data } = await wsFetch(route, { path: raw });
+      if (data.error) { wsErr(data.error); return; }
+      if (data.needs_trust) {
+        wsPending = data.path;
+        document.getElementById("ws-trust-path").textContent = data.path;
+        wsShow("ws-trust");
+        return;
+      }
+      ws = data;
+      wsRoot = "";
+      wsListPath = "";
+      renderWsPill();
+      wsRenderActive();
+      wsShow("ws-active");
+      if (data.already) toast("That folder is already in the workspace.");
+      else if (wsMode === "add") toast("Folder added to the workspace.");
+    } catch (e) {
+      wsErr(e.message);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = "Continue";
+    }
+  }
+
+  document.getElementById("ws-continue").addEventListener("click", wsContinue);
+  wsPathInput.addEventListener("keydown", e => {
+    if (e.key === "Enter") { e.preventDefault(); wsContinue(); }
+  });
+
+  document.getElementById("ws-back").addEventListener("click", wsStartPick);
+
+  document.getElementById("ws-trust-btn").addEventListener("click", async () => {
+    const btn = document.getElementById("ws-trust-btn");
+    const route = wsMode === "add" ? "/api/workspace/add" : "/api/workspace/select";
+    btn.disabled = true;
+    btn.textContent = "Trusting…";
+    try {
+      const { data } = await wsFetch(route, { path: wsPending, trust: true });
+      if (data.error) { alert(data.error); return; }
+      ws = data;
+      wsRoot = "";
+      wsListPath = "";
+      renderWsPill();
+      wsRenderActive();
+      wsShow("ws-active");
+      toast(wsMode === "add" ? "Folder added and trusted." : "Trusted " + (ws.path || ""));
+    } catch (e) {
+      alert(e.message);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = "Trust folder";
+    }
+  });
+
+  function wsRenderActive() {
+    const folders = (ws && Array.isArray(ws.folders)) ? ws.folders : [];
+    document.getElementById("ws-active-path").textContent = (ws && ws.path) || "";
+    const tag = document.getElementById("ws-active-trust");
+    const ok = !!(ws && ws.trusted);
+    tag.textContent = ok ? "Trusted ✓" : (ws && ws.exists ? "Not trusted" : "Missing");
+    tag.classList.toggle("no", !ok);
+    const multi = folders.length > 1;
+    document.getElementById("ws-active-root").hidden = multi;
+    const list = document.getElementById("ws-folders");
+    list.hidden = !multi;
+    list.innerHTML = "";
+    folders.forEach(f => {
+      const row = document.createElement("div");
+      row.className = "ws-frow";
+      row.innerHTML =
+        '<span class="pth"></span><span class="trust-tag"></span>' +
+        '<button type="button" class="ws-mini" title="Remove from the workspace (the folder stays trusted)"></button>';
+      row.querySelector(".pth").textContent = wsBase(f.path);
+      row.querySelector(".pth").title = f.path;
+      const t = row.querySelector(".trust-tag");
+      const good = !!(f.trusted && f.exists);
+      t.textContent = good ? "Trusted ✓" : (f.exists ? "Not trusted" : "Missing");
+      t.classList.toggle("no", !good);
+      const rm = row.querySelector("button");
+      rm.textContent = "×";
+      rm.onclick = () => wsRemoveFolder(f.path, wsBase(f.path));
+      list.appendChild(row);
+    });
+    document.getElementById("ws-active-note").textContent = ok
+      ? (multi
+          ? "This workspace holds " + folders.length + " folders. Open the file explorer to read and edit files, or ask the assistant to work on them."
+          : "Open the file explorer to read and edit files here, save code blocks into this folder, or ask the assistant to work on it.")
+      : "This folder cannot be used right now. Choose another folder to continue.";
+  }
+
+  async function wsRemoveFolder(path, name) {
+    if (!confirm('Remove "' + name + '" from this workspace? (the folder stays trusted)')) return;
+    try {
+      const { data } = await wsFetch("/api/workspace/clear", { path, untrust: false });
+      if (data.error) { alert(data.error); return; }
+      ws = data;
+      wsRoot = "";
+      wsListPath = "";
+      renderWsPill();
+      if (!ws.configured) { wsMode = "open"; wsStartPick(); }
+      else wsRenderActive();
+      toast("Removed " + name + " from the workspace.");
+    } catch (e) {
+      alert(e.message);
+    }
+  }
+
+  document.getElementById("ws-change").addEventListener("click", () => {
+    wsMode = "open";
+    wsStartPick();
+  });
+  document.getElementById("ws-add").addEventListener("click", () => openWs("ws-pick", "add"));
+  document.getElementById("ws-explore").addEventListener("click", () => openWs("ws-explorer"));
+  document.getElementById("ws-expback").addEventListener("click", () => {
+    wsRenderActive();
+    wsShow("ws-active");
+  });
+
+  document.getElementById("ws-remove").addEventListener("click", async () => {
+    if (!confirm("Remove this folder from OpenLink AI and untrust it?")) return;
+    try {
+      const { data } = await wsFetch("/api/workspace/clear", { untrust: true });
+      ws = data;
+      wsRoot = "";
+      wsMode = "open";
+      renderWsPill();
+      wsStartPick();
+      toast("Folder removed and untrusted.");
+    } catch (e) {
+      alert(e.message);
+    }
+  });
+
+  async function wsStartExplorer() {
+    wsShow("ws-explorer");
+    wsExpErr("");
+    await wsLoadList(wsListPath || "");
+  }
+
+  function wsRenderRoots() {
+    const box = document.getElementById("ws-roots");
+    const folders = (ws && Array.isArray(ws.folders)) ? ws.folders : [];
+    box.hidden = folders.length < 2;
+    box.innerHTML = "";
+    folders.forEach(f => {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.className = "ws-mini" + (f.path === wsRoot ? " current" : "");
+      b.textContent = wsBase(f.path);
+      b.title = f.path;
+      b.onclick = () => {
+        if (f.path === wsRoot) return;
+        wsRoot = f.path;
+        wsListPath = "";
+        wsLoadList("");
+      };
+      box.appendChild(b);
+    });
+  }
+
+  async function wsLoadList(rel) {
+    const { res, data } = await wsFetch("/api/workspace/list", { path: rel || "", root: wsRoot });
+    if (!res.ok || data.error) {
+      document.getElementById("ws-files").innerHTML = "";
+      wsExpErr(data.error || "Cannot list this folder.");
+      if (res.status === 403) setTimeout(() => openWs("ws-pick"), 700);
+      return;
+    }
+    wsExpErr("");
+    wsRoot = data.root || wsRoot;
+    wsRenderRoots();
+    wsListPath = data.path || "";
+    wsRenderCrumb(document.getElementById("ws-ecrumb"), wsListPath, p => wsLoadList(p));
+    const box = document.getElementById("ws-files");
+    box.innerHTML = "";
+    if (!data.entries.length) {
+      box.innerHTML = '<div class="ws-empty">This folder is empty.</div>';
+      return;
+    }
+    for (const e of data.entries) {
+      const row = document.createElement("button");
+      row.type = "button";
+      row.className = "ws-row";
+      row.innerHTML = '<span class="ic"></span><span class="nm"></span><span class="meta"></span>';
+      row.querySelector(".ic").textContent = e.dir ? "📁" : "📄";
+      row.querySelector(".nm").textContent = e.name;
+      row.querySelector(".nm").title = e.name;
+      row.querySelector(".meta").textContent = e.dir
+        ? ""
+        : (e.size < 1024 ? e.size + " B" : (e.size / 1024).toFixed(1) + " KB");
+      const relPath = wsJoin(wsListPath, e.name);
+      row.onclick = () => { e.dir ? wsLoadList(relPath) : wsOpenFile(relPath, e.name); };
+      box.appendChild(row);
+    }
+  }
+
+  function wsShowEditor(name, title) {
+    document.getElementById("ws-placeholder").hidden = true;
+    document.getElementById("ws-fname").hidden = false;
+    document.getElementById("ws-ta").hidden = false;
+    document.getElementById("ws-efoot").hidden = false;
+    document.getElementById("ws-fname-t").textContent = name;
+    document.getElementById("ws-fname").title = title || name;
+  }
+
+  function wsSetStatus(msg, good) {
+    const s = document.getElementById("ws-status");
+    s.textContent = msg || "";
+    s.style.color = good ? "var(--green)" : "";
+  }
+
+  async function wsOpenFile(rel, name) {
+    if (wsDirty && !confirm("Discard unsaved changes to " + ((wsFile && wsFile.name) || "this file") + "?")) return;
+    wsExpErr("");
+    const { res, data } = await wsFetch("/api/workspace/read", { path: rel, root: wsRoot });
+    if (!res.ok || data.error) { wsExpErr(data.error || "Cannot open that file."); return; }
+    wsFile = { path: data.path, name: data.name };
+    wsTA.value = data.content;
+    wsDirty = false;
+    wsShowEditor(data.name, data.path);
+    wsSetStatus("Loaded " + data.size + " bytes");
+    wsTA.focus();
+  }
+
+  wsTA.addEventListener("input", () => {
+    if (!wsDirty) { wsDirty = true; wsSetStatus("Unsaved changes"); }
+  });
+  wsTA.addEventListener("keydown", e => {
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") {
+      e.preventDefault();
+      wsSaveFile();
+    }
+    if (e.key === "Tab") {
+      e.preventDefault();
+      const s = wsTA.selectionStart, en = wsTA.selectionEnd;
+      wsTA.setRangeText("    ", s, en, "end");
+      wsDirty = true;
+      wsSetStatus("Unsaved changes");
+    }
+  });
+
+  async function wsSaveFile() {
+    if (!wsFile) return;
+    const btn = document.getElementById("ws-save");
+    btn.disabled = true;
+    try {
+      const { res, data } = await wsFetch("/api/workspace/write", {
+        path: wsFile.path,
+        content: wsTA.value,
+        root: wsRoot,
+      });
+      if (!res.ok || data.error) { wsExpErr(data.error || "Save failed."); return; }
+      wsFile.path = data.path;
+      wsDirty = false;
+      wsSetStatus("Saved ✓ " + data.size + " bytes", true);
+      toast("Saved " + data.path);
+      wsLoadList(wsListPath);
+    } catch (e) {
+      wsExpErr(e.message);
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
+  document.getElementById("ws-save").addEventListener("click", wsSaveFile);
+  document.getElementById("ws-refresh").addEventListener("click", () => wsLoadList(wsListPath));
+
+  /* ---- new file / new folder: pick a drive or folder ---- */
+  const wsNewModal = document.getElementById("wsnewmodal");
+  const wsNewLoc = document.getElementById("wsnew-loc");
+  const wsNewName = document.getElementById("wsnew-name");
+  const wsNewCrumb = document.getElementById("wsnew-crumb");
+  const wsNewDirs = document.getElementById("wsnew-dirs");
+  const wsNewDriveBar = document.getElementById("wsnew-drivebar");
+  let wsNewKind = "file";
+  let wsNewBrowse = { path: "", parent: "", drives: [], entries: [] };
+
+  function wsNewErr(msg) { document.getElementById("wsnew-err").textContent = msg || ""; }
+  function closeWsNew() { wsNewModal.classList.remove("open"); }
+  function wsExplorerOpen() { return wsModal.classList.contains("open"); }
+
+  function normPath(p) {
+    return String(p || "").replace(/\//g, "\\").replace(/\\{2,}/g, "\\").replace(/\\+$/, "").toLowerCase();
+  }
+
+  function wsTrustedFolders() {
+    return (ws && Array.isArray(ws.folders)) ? ws.folders.filter(f => f.trusted && f.exists) : [];
+  }
+
+  function wsFolderFor(absPath) {
+    const t = normPath(absPath);
+    let best = null;
+    for (const f of wsTrustedFolders()) {
+      const r = normPath(f.path);
+      if (t === r || t.startsWith(r + "\\")) {
+        if (!best || r.length > normPath(best.path).length) best = f;
+      }
+    }
+    return best;
+  }
+
+  function wsRelTo(root, abs) {
+    const r = String(root || "");
+    let a = String(abs || "");
+    if (normPath(a) === normPath(r)) return "";
+    if (a.length > r.length) a = a.slice(r.length);
+    return a.replace(/^[\\/]+/, "").replace(/\\/g, "/");
+  }
+
+  function wsNewStartDir() {
+    if (wsExplorerOpen()) {
+      if (wsRoot) return wsJoin(wsRoot, wsListPath);
+      return (ws && ws.path) || "";
+    }
+    const typed = (wsPathInput.value || "").trim();
+    return typed || (ws && ws.path) || "";
+  }
+
+  function openNewDialog(kind) {
+    wsNewKind = kind;
+    wsNewErr("");
+    document.getElementById("wsnew-title").textContent = kind === "file" ? "New file" : "New folder";
+    wsNewName.placeholder = kind === "file" ? "main.py" : "new-folder";
+    wsNewName.value = "";
+    wsNewDriveBar.hidden = true;
+    wsNewModal.classList.add("open");
+    const start = wsNewStartDir();
+    wsNewLoc.value = start;
+    wsNewLoad(start);
+    setTimeout(() => { try { wsNewName.focus(); } catch {} }, 40);
+  }
+
+  async function wsNewLoad(path) {
+    const { res, data } = await wsFetch("/api/workspace/browse", { path: path || "" });
+    if (!res.ok || data.error) { wsNewErr(data.error || "Cannot browse that location."); return; }
+    wsNewErr("");
+    wsNewBrowse = data;
+    wsNewLoc.value = data.path || "";
+    wsNewCrumb.hidden = false;
+    wsNewDirs.hidden = false;
+    wsRenderCrumb(wsNewCrumb, wsNewBrowse.path, p => wsNewLoad(p));
+    wsNewRenderDirs();
+  }
+
+  function wsNewRenderDirs() {
+    wsNewDirs.innerHTML = "";
+    const showDrives = !wsNewBrowse.path && wsNewBrowse.drives.length;
+    const items = showDrives
+      ? wsNewBrowse.drives.map(d => ({ name: d, full: d }))
+      : wsNewBrowse.entries.map(e => ({ name: e.name, full: wsJoin(wsNewBrowse.path, e.name) }));
+    if (!items.length) {
+      wsNewDirs.innerHTML = '<div class="ws-empty">No sub-folders here.</div>';
+      return;
+    }
+    for (const it of items) {
+      const row = document.createElement("button");
+      row.type = "button";
+      row.className = "ws-row";
+      row.innerHTML = '<span class="ic">📁</span><span class="nm"></span>';
+      row.querySelector(".nm").textContent = it.name;
+      row.title = it.full;
+      row.onclick = () => wsNewLoad(it.full);
+      wsNewDirs.appendChild(row);
+    }
+  }
+
+  document.getElementById("wsnew-drives-btn").addEventListener("click", async () => {
+    if (!wsNewDriveBar.hidden) { wsNewDriveBar.hidden = true; return; }
+    if (!wsNewBrowse.drives.length) {
+      const { res, data } = await wsFetch("/api/workspace/browse", { path: "" });
+      if (!res.ok || data.error) { wsNewErr(data.error || "Cannot list the drives."); return; }
+      wsNewBrowse.drives = data.drives || [];
+    }
+    wsNewDriveBar.innerHTML = "";
+    if (!wsNewBrowse.drives.length) {
+      wsNewErr("No drives to list here — type a full path in Where instead.");
+      return;
+    }
+    for (const d of wsNewBrowse.drives) {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.className = "ws-mini";
+      b.textContent = "💾 " + d;
+      b.title = "Go to " + d;
+      b.onclick = () => { wsNewDriveBar.hidden = true; wsNewLoad(d); };
+      wsNewDriveBar.appendChild(b);
+    }
+    wsNewDriveBar.hidden = false;
+  });
+
+  document.getElementById("wsnew-ws-btn").addEventListener("click", () => {
+    const start = (ws && ws.path) || "";
+    if (!start) { wsNewErr("No workspace folder is open yet — open one with the folder button first."); return; }
+    wsNewDriveBar.hidden = true;
+    wsNewLoad(start);
+  });
+
+  wsNewLoc.addEventListener("keydown", e => {
+    if (e.key === "Enter") { e.preventDefault(); wsNewLoad(wsNewLoc.value.trim()); }
+  });
+  wsNewName.addEventListener("keydown", e => {
+    if (e.key === "Enter") { e.preventDefault(); wsNewConfirm(); }
+  });
+
+  async function wsNewConfirm() {
+    const loc = wsNewLoc.value.trim() || wsNewStartDir();
+    if (!loc) { wsNewErr("Pick a drive or a folder first."); return; }
+    const rawName = wsNewName.value.trim().replace(/[\\/]+/g, "/");
+    if (!rawName) { wsNewErr("Enter a name first."); return; }
+    if (rawName.split("/").some(seg => seg === ".." || seg === ".")) {
+      wsNewErr("The name cannot contain . or ..");
+      return;
+    }
+    const full = wsJoin(loc, rawName);
+    wsNewErr("");
+    const btn = document.getElementById("wsnew-ok");
+    btn.disabled = true;
+    try {
+      if (wsNewKind === "folder") await wsNewMakeFolder(full);
+      else await wsNewMakeFile(full);
+    } catch (e) {
+      wsNewErr(e.message);
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
+  async function wsNewMakeFolder(full) {
+    const { res, data } = await wsFetch("/api/workspace/mkdir", { path: full });
+    if (!res.ok || data.error) { wsNewErr(data.error || "Could not create the folder."); return; }
+    closeWsNew();
+    toast(data.created ? "Created " + data.path : "That folder already exists.");
+    const hit = wsFolderFor(data.path);
+    if (hit && wsExplorerOpen()) {
+      wsRoot = hit.path;
+      wsListPath = wsRelTo(hit.path, data.path);
+      await wsLoadList(wsListPath);
+      wsShow("ws-explorer");
+      if (wsDirty) wsSetStatus("Unsaved changes");
+    }
+  }
+
+  async function wsNewMakeFile(full) {
+    const hit = wsFolderFor(full);
+    if (!hit) {
+      wsNewErr("That folder is not one of your trusted workspace folders. "
+        + "Open the folder picker and add it with the add-folder button first, then try again.");
+      return;
+    }
+    if (wsDirty && !confirm("Discard unsaved changes to " + ((wsFile && wsFile.name) || "this file") + "?")) return;
+    wsRoot = hit.path;
+    wsListPath = wsRelTo(hit.path, full);
+    const dirRel = wsListPath.split("/").slice(0, -1).join("/");
+    closeWsNew();
+    wsExpErr("");
+    if (wsExplorerOpen()) await wsLoadList(dirRel);
+    wsFile = { path: wsListPath, name: wsListPath.split("/").pop() };
+    wsTA.value = "";
+    wsDirty = true;
+    wsShowEditor(wsFile.name, full);
+    wsSetStatus("New file — Save to create it");
+    wsTA.focus();
+  }
+
+  document.getElementById("wsnew-cancel").addEventListener("click", closeWsNew);
+  document.getElementById("wsnew-close").addEventListener("click", closeWsNew);
+  document.getElementById("wsnew-ok").addEventListener("click", wsNewConfirm);
+  wsNewModal.addEventListener("click", e => { if (e.target.id === "wsnewmodal") closeWsNew(); });
+
+  document.getElementById("ws-newfile").addEventListener("click", () => openNewDialog("file"));
+  document.getElementById("ws-newfolder-ex").addEventListener("click", () => openNewDialog("folder"));
+
+  document.getElementById("ws-attach").addEventListener("click", () => {
+    if (!wsFile) return;
+    const text = wsTA.value;
+    if (text.length > MAX_FILE_CHARS) {
+      wsExpErr("'" + wsFile.name + "' has " + text.length + " characters — the attachment limit is " + MAX_FILE_CHARS + ".");
+      return;
+    }
+    if (attachments.some(a => a.name === wsFile.name)) { toast("Already attached."); return; }
+    attachments.push({ name: wsFile.name, content: text, size: text.length });
+    renderChips();
+    closeWs();
+    toast("Attached " + wsFile.name);
+    input.focus();
+  });
+
+  function saveCode(key, i) {
+    const code = (codeStore[key] || [])[i] || "";
+    if (!ws || !ws.trusted) {
+      openWs("ws-pick");
+      wsErr("Open and trust a folder first — then you can save this block into it.");
+      return;
+    }
+    const def = wsFile ? wsFile.path : "";
+    const name = prompt("Save this code as (path relative to " + ws.path + "):", def);
+    if (!name || !name.trim()) return;
+    wsFetch("/api/workspace/write", { path: name.trim(), content: code })
+      .then(({ res, data }) => {
+        if (!res.ok || data.error) { alert(data.error || "Save failed."); return; }
+        toast("Saved " + data.path);
+        if (wsModal.classList.contains("open")) wsLoadList(wsListPath);
+      })
+      .catch(e => alert(e.message));
+  }
+
+  document.getElementById("ws-vscode").addEventListener("click", async () => {
+    const btn = document.getElementById("ws-vscode");
+    btn.disabled = true;
+    try {
+      const { res, data } = await wsFetch("/api/vscode", {});
+      if (!res.ok || data.error) {
+        alert(data.error || "Could not open Visual Studio Code.");
+        return;
+      }
+      toast("Opening " + (data.target || "folder") + " in VS Code");
+    } catch (e) {
+      alert(e.message);
+    } finally {
+      btn.disabled = false;
+    }
+  });
+
+  /* ---------------- shell (let the AI run PowerShell) ---------------- */
+  function renderShell() {
+    const pill = document.getElementById("shell-pill");
+    if (!pill) return;
+    const on = !!(cfg && cfg.allow_exec);
+    const path = (cfg && cfg.workspace && cfg.workspace.path) || "the trusted folder";
+    pill.textContent = on ? "⚡ shell on" : "⚡ shell off";
+    pill.classList.toggle("on", on);
+    pill.classList.toggle("off", !on);
+    pill.title = on
+      ? "The AI can run PowerShell commands inside " + path + " — click to turn off"
+      : "Click to let the AI run PowerShell commands (needs a trusted folder)";
+  }
+
+  document.getElementById("shell-pill").addEventListener("click", async () => {
+    if (!cfg) return;
+    const trusted = !!(cfg.workspace && cfg.workspace.trusted);
+    if (!trusted && !cfg.allow_exec) {
+      openWs("ws-pick");
+      wsErr("Open and trust a folder first — the AI only runs commands inside a trusted folder.");
+      return;
+    }
+    const next = !cfg.allow_exec;
+    try {
+      const res = await fetch("/api/settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ allow_exec: next }),
+      });
+      const data = await res.json();
+      if (data.error) { alert(data.error); return; }
+      cfg.allow_exec = data.allow_exec;
+      renderShell();
+      toast(data.allow_exec
+        ? "Shell ON — the AI can run PowerShell in the trusted folder."
+        : "Shell off — the AI will not run commands.");
+    } catch (e) {
+      alert(e.message);
+    }
+  });
+
+  function clipForBlock(s, n) {
+    if (s.length <= n) return s;
+    const head = Math.floor(n * 0.6);
+    const tail = n - head;
+    return s.slice(0, head) + "\n... (" + (s.length - n) + " chars trimmed) ...\n" + s.slice(-tail);
+  }
+
+  function toolBlock(t) {
+    const tool = t.tool || "run_shell";
+    const path = String(t.path || "");
+    const ok = t.ok !== false;
+    const bad = ok ? "" : " · " + (t.error || "failed");
+
+    if (tool === "list_dir") {
+      const rows = (Array.isArray(t.entries) ? t.entries : [])
+        .map(e => (e.dir ? "📁 " : "    ") + e.name + (e.dir ? "/" : "  (" + e.size + " B)"))
+        .join("\n") || "(empty folder)";
+      const head = (ok ? "✓ " : "✗ ") + "list_dir · " + (path || ".") + bad;
+      return "\n\n" + head + "\n\n```\n" + clipForBlock(rows, 6000) + "\n```\n";
+    }
+
+    if (tool === "read_file") {
+      const head = (ok ? "✓ " : "✗ ") + "read_file · " + path +
+        (ok ? "  · " + (t.size || 0) + " B" : bad);
+      const body = ok ? String(t.content || "").replace(/```/g, "'`'")
+                      : String(t.error || "");
+      return "\n\n" + head + "\n\n```\n" + clipForBlock(body, 6000) + "\n```\n";
+    }
+
+    if (tool === "write_file") {
+      const head = (ok ? "✓ " : "✗ ") + "write_file · " + path +
+        (ok ? "  · " + (t.size || 0) + " B saved" : bad);
+      const body = ok ? String(t.preview || "").replace(/```/g, "'`'")
+                      : String(t.error || "");
+      return "\n\n" + head + "\n\n```\n" +
+        clipForBlock(body || "(empty file)", 6000) + "\n```\n";
+    }
+
+    const out = [t.stdout || "", t.stderr || "", t.error || ""].filter(Boolean).join("\n");
+    const body = clipForBlock(String(out).replace(/```/g, "'`'"), 6000);
+    const code = (t.code === undefined || t.code === null) ? "?" : t.code;
+    const secs = ((t.duration_ms || 0) / 1000).toFixed(1);
+    const head = "⚡ PowerShell · exit " + code + " · " + secs + "s" + (t.error ? " · failed" : "");
+    const cmd = String(t.command || "").replace(/```/g, "");
+    return "\n\n" + head + "\n\n```powershell\n$ " + cmd +
+      (body ? "\n" + body + "\n" : "") + "```\n";
+  }
+
+  wsModal.addEventListener("click", e => { if (e.target.id === "wsmodal") closeWs(); });
+  wsPill.addEventListener("click", () => openWs());
+
+  /* ---------------- wiring ---------------- */
+  sendBtn.addEventListener("click", () => { if (busy) stopWork(); else send(); });
+  input.addEventListener("keydown", e => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      send();
+    }
+  });
+
+  document.getElementById("newchat").addEventListener("click", () => {
+    if (busy) return;
+    const cur = activeSession();
+    if (cur && !cur.messages.length) { input.focus(); return; }
+    createSession();
+    input.focus();
+  });
+
+  document.getElementById("toggleside").addEventListener("click", () => {
+    document.getElementById("sidebar").classList.toggle("hidden");
+  });
+
+  /* theme */
+  function applyTheme(t) {
+    document.documentElement.dataset.theme = t;
+    localStorage.setItem(LS_THEME, t);
+    document.getElementById("theme-btn").title = "Theme: " + t;
+  }
+  document.getElementById("theme-btn").addEventListener("click", () => {
+    applyTheme(document.documentElement.dataset.theme === "dark" ? "light" : "dark");
+  });
+  applyTheme(localStorage.getItem(LS_THEME) || "dark");
+
+  /* drag & drop images/files */
+  document.addEventListener("paste", async e => {
+    for (const item of e.clipboardData?.items || []) {
+      if (item.kind === "file") {
+        const f = item.getAsFile();
+        if (f) await addFile(f);
+      }
+    }
+  });
+
+  loadSessions();
+  renderSessions();
+  renderChat();
+  bindSugg();
+  loadConfig();
+
+  if (location.protocol === "file:") {
+    setTimeout(() => {
+      const div = document.createElement("div");
+      div.className = "msg error";
+      div.textContent =
+        "Opened as a local file — chat is disabled. Double-click 'OpenLink AI Web.bat' on your Desktop, then open http://127.0.0.1:8377/";
+      chatInner.appendChild(div);
+    }, 300);
+  }
+</script>
+</body>
+</html>
