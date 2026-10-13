@@ -1226,9 +1226,11 @@
       modePromise = realFetch("/api/config")
         .then(function (r) {
           var ct = r.headers.get("content-type") || "";
-          return r.ok && ct.indexOf("json") !== -1 ? "server" : "browser";
+          var m = r.ok && ct.indexOf("json") !== -1 ? "server" : "browser";
+          window.__OPENLINK_BROWSER__ = (m === "browser");
+          return m;
         })
-        .catch(function () { return "browser"; });
+        .catch(function () { window.__OPENLINK_BROWSER__ = true; return "browser"; });
     }
     return modePromise;
   }
@@ -1256,7 +1258,7 @@
       model: s.model,
       ready: !!ks[s.provider],
       providers: providers,
-      workspace: null,
+      workspace: browserWsState(),
       allow_exec: false,
       browser_mode: true
     });
@@ -1456,6 +1458,8 @@
 
   function route(url, init) {
     var path = url.split("?")[0];
+    var body = {};
+    try { body = JSON.parse((init && init.body) || "{}"); } catch (e) { body = {}; }
     if (path === "/api/config") return cfgRoute();
     if (path === "/api/chat") return chatRoute(init);
     if (path === "/api/keys") return keysRoute(init);
@@ -1464,9 +1468,238 @@
     if (path === "/api/providers") return providersRoute(init);
     if (path === "/api/providers/remove") return removeProviderRoute(init);
     if (path === "/api/settings") return json({ error: NEEDS_APP }, 400);
-    if (path.indexOf("/api/workspace") === 0 || path === "/api/vscode") return json({ error: NEEDS_APP }, 400);
+    if (path === "/api/workspace/browse") return wsAsync(browserBrowse(body.path));
+    if (path === "/api/workspace/list") return wsAsync(browserList(body));
+    if (path === "/api/workspace/read") return wsAsync(browserRead(body.path));
+    if (path === "/api/workspace/write") return wsAsync(browserWrite(body.path, body.content));
+    if (path === "/api/workspace/mkdir") return wsAsync(browserMkdir(body.path));
+    if (path === "/api/workspace/clear") return wsAsync(browserClear());
+    if (path === "/api/workspace/select" || path === "/api/workspace/add") {
+      // In browser mode the folder is chosen with the picker (📁), so just report state.
+      return wsAsync(Promise.resolve(browserWsState()));
+    }
+    if (path === "/api/vscode") return json({ error: NEEDS_APP }, 400);
     return json({ error: "not found" }, 404);
   }
+
+  /* ---- browser workspace: File System Access API ----
+     The user picks a folder with the native picker; that pick is the "trust"
+     grant. The app then reads/writes real files inside it. The handle is kept
+     in IndexedDB so the trusted folder survives reloads (permission re-asked
+     by the browser only when needed). Works in Chrome / Edge. */
+  var WS_IDB = "openlink.ws";
+  var browserDir = null; // FileSystemDirectoryHandle of the trusted root
+
+  function idbOpen() {
+    return new Promise(function (res, rej) {
+      var rq = indexedDB.open(WS_IDB, 1);
+      rq.onupgradeneeded = function () { rq.result.createObjectStore("kv"); };
+      rq.onsuccess = function () { res(rq.result); };
+      rq.onerror = function () { rej(rq.error); };
+    });
+  }
+  function idbPut(key, val) {
+    return idbOpen().then(function (db) {
+      return new Promise(function (res, rej) {
+        var tx = db.transaction("kv", "readwrite");
+        tx.objectStore("kv").put(val, key);
+        tx.oncomplete = function () { res(); };
+        tx.onerror = function () { rej(tx.error); };
+      });
+    });
+  }
+  function idbGet(key) {
+    return idbOpen().then(function (db) {
+      return new Promise(function (res) {
+        var tx = db.transaction("kv", "readonly");
+        var rq = tx.objectStore("kv").get(key);
+        rq.onsuccess = function () { res(rq.result); };
+        rq.onerror = function () { res(undefined); };
+      });
+    });
+  }
+  function idbDel(key) {
+    return idbOpen().then(function (db) {
+      return new Promise(function (res) {
+        var tx = db.transaction("kv", "readwrite");
+        tx.objectStore("kv").delete(key);
+        tx.oncomplete = function () { res(); };
+        tx.onerror = function () { res(); };
+      });
+    });
+  }
+
+  function wsErr(msg, status) { var e = new Error(msg); e.status = status || 400; return e; }
+
+  function browserWsState() {
+    if (!browserDir) return { path: "", configured: false, exists: false, trusted: false, folders: [] };
+    var name = browserDir.name || "folder";
+    return {
+      path: name,
+      configured: true,
+      exists: true,
+      trusted: true,
+      folders: [{ path: name, exists: true, trusted: true }]
+    };
+  }
+
+  // rel paths are relative to the root. "name", "a/b" — never the root name itself.
+  async function browserGetDir(rel, create) {
+    var parts = String(rel || "").split("/").filter(Boolean);
+    var dir = browserDir;
+    for (var i = 0; i < parts.length; i++) {
+      dir = await dir.getDirectoryHandle(parts[i], { create: !!create });
+    }
+    return dir;
+  }
+
+  // The app may hand us a root-prefixed path ("myproj/sub") in the new-file/folder
+  // dialogs. Strip the root name so we get a path relative to the handle.
+  function browserStripRoot(p) {
+    var s = String(p || "").replace(/\\/g, "/").replace(/^\/+/, "");
+    var rootName = browserDir ? browserDir.name : "";
+    if (rootName && s === rootName) return "";
+    if (rootName && s.indexOf(rootName + "/") === 0) return s.slice(rootName.length + 1);
+    return s;
+  }
+  function browserDisplay(rel) {
+    var rootName = browserDir ? browserDir.name : "folder";
+    return rel ? (rootName + "/" + rel) : rootName;
+  }
+
+  async function browserResolveFile(rel) {
+    var parts = String(rel || "").split("/").filter(Boolean);
+    var name = parts.pop();
+    if (!name) throw wsErr("Invalid file path.", 400);
+    var parent = await browserGetDir(parts.join("/"), false);
+    return { parent: parent, name: name };
+  }
+
+  function wsAsync(p) {
+    return p.then(function (obj) {
+      return json(obj, (obj && obj.__status) || 200);
+    }).catch(function (e) {
+      return json({ error: String((e && e.message) || e) }, (e && e.status) || 400);
+    });
+  }
+
+  function browserEnsure() {
+    if (!browserDir) throw wsErr("This folder is not trusted. Open the folder and trust it first.", 403);
+  }
+
+  async function browserBrowse(relPath) {
+    if (!browserDir) return { path: "", parent: "", drives: [], entries: [] };
+    var rel = browserStripRoot(relPath);
+    var dir;
+    try { dir = await browserGetDir(rel, false); }
+    catch (e) { throw wsErr("Folder not found: " + relPath, 404); }
+    var entries = [];
+    for await (var entry of dir.values()) {
+      if (entry.kind === "directory") entries.push({ name: entry.name, dir: true, size: 0, mtime: 0 });
+    }
+    entries.sort(function (a, b) { return a.name.toLowerCase() < b.name.toLowerCase() ? -1 : 1; });
+    return { path: browserDisplay(rel), parent: "", drives: [], entries: entries };
+  }
+
+  async function browserList(body) {
+    browserEnsure();
+    var rel = browserStripRoot(body && body.path);
+    var dir;
+    try { dir = await browserGetDir(rel, false); }
+    catch (e) { throw wsErr("Folder not found.", 404); }
+    var entries = [];
+    for await (var entry of dir.values()) {
+      var isDir = entry.kind === "directory";
+      var size = 0;
+      if (!isDir) { try { var f = await entry.getFile(); size = f.size; } catch (e) {} }
+      entries.push({ name: entry.name, dir: isDir, size: size, mtime: 0 });
+    }
+    entries.sort(function (a, b) { return (b.dir - a.dir) || (a.name.toLowerCase() < b.name.toLowerCase() ? -1 : 1); });
+    return { path: rel, root: browserDir.name, entries: entries };
+  }
+
+  async function browserRead(relRaw) {
+    browserEnsure();
+    var rel = browserStripRoot(relRaw);
+    var r = await browserResolveFile(rel);
+    var fh;
+    try { fh = await r.parent.getFileHandle(r.name); }
+    catch (e) { throw wsErr("File not found.", 404); }
+    var file = await fh.getFile();
+    var text = await file.text();
+    return { path: rel, name: r.name, content: text, size: file.size };
+  }
+
+  async function browserWrite(relRaw, content) {
+    browserEnsure();
+    if (typeof content !== "string") throw wsErr("content is required.", 400);
+    var rel = browserStripRoot(relRaw);
+    if (!rel) throw wsErr("Invalid file path.", 400);
+    var r = await browserResolveFile(rel);
+    var fh = await r.parent.getFileHandle(r.name, { create: true });
+    var w = await fh.createWritable();
+    await w.write(content);
+    await w.close();
+    return { ok: true, path: rel, name: r.name, size: new Blob([content]).size };
+  }
+
+  async function browserMkdir(relRaw) {
+    browserEnsure();
+    var rel = browserStripRoot(relRaw);
+    var parts = rel.split("/").filter(Boolean);
+    var name = parts.pop();
+    if (!name) throw wsErr("Folder name is required.", 400);
+    var parent = await browserGetDir(parts.join("/"), true);
+    try {
+      await parent.getDirectoryHandle(name, { create: false });
+      return { ok: true, created: false, path: browserDisplay(rel) };
+    } catch (e) {
+      await parent.getDirectoryHandle(name, { create: true });
+      return { ok: true, created: true, path: browserDisplay(rel) };
+    }
+  }
+
+  async function browserClear() {
+    browserDir = null;
+    await idbDel("handle");
+    return browserWsState();
+  }
+
+  window.__browserWsOpen = async function () {
+    if (!window.showDirectoryPicker) {
+      alert("This browser can't open folders. Use Chrome or Edge on this site to work with files.");
+      return;
+    }
+    var handle;
+    try {
+      handle = await showDirectoryPicker({ mode: "readwrite" });
+    } catch (e) {
+      return; // user cancelled
+    }
+    try {
+      if (await handle.queryPermission({ mode: "readwrite" }) !== "granted") {
+        var p = await handle.requestPermission({ mode: "readwrite" });
+        if (p !== "granted") { alert("Read/write permission was denied for that folder."); return; }
+      }
+    } catch (e) {}
+    browserDir = handle;
+    await idbPut("handle", handle);
+    if (window.__onBrowserWsReady) window.__onBrowserWsReady(browserWsState());
+  };
+
+  window.__browserWsRestore = async function () {
+    if (!window.showDirectoryPicker || !window.indexedDB) return null;
+    var handle;
+    try { handle = await idbGet("handle"); } catch (e) { return null; }
+    if (!handle) return null;
+    try {
+      if (await handle.queryPermission({ mode: "readwrite" }) === "granted") {
+        browserDir = handle;
+        return browserWsState();
+      }
+    } catch (e) {}
+    return null; // browser will re-ask the next time the user opens a folder
+  };
 
   window.fetch = function (input, init) {
     var url = typeof input === "string" ? input : (input && input.url) || "";
@@ -2516,6 +2749,12 @@
   }
 
   function openWs(view, mode) {
+    if (window.__OPENLINK_BROWSER__ && window.__browserWsOpen) {
+      if (view === "ws-explorer" && ws && ws.trusted) { /* open the explorer of the trusted folder */ }
+      else if (view === "ws-explorer") { window.__browserWsOpen(); return; } // no folder yet → pick one (needs the user gesture)
+      else if (ws && ws.trusted) { wsMode = mode || "open"; wsModal.classList.add("open"); wsErr(""); wsRenderActive(); wsShow("ws-active"); return; }
+      else { window.__browserWsOpen(); return; }
+    }
     wsMode = mode || "open";
     wsModal.classList.add("open");
     wsErr("");
@@ -2529,6 +2768,7 @@
   function closeWs() { wsModal.classList.remove("open"); }
 
   function wsStartPick() {
+    if (window.__OPENLINK_BROWSER__ && window.__browserWsOpen) { window.__browserWsOpen(); return; }
     wsShow("ws-pick");
     wsPathInput.value = wsMode === "add" ? "" : (ws && ws.path ? ws.path : "");
     const note = document.getElementById("ws-pick-note");
@@ -3292,7 +3532,26 @@
   renderSessions();
   renderChat();
   bindSugg();
-  loadConfig();
+
+  /* Browser mode (Vercel / GitHub Pages): folder trust uses the File System
+     Access API. Handle a new pick, and re-link one trusted earlier. */
+  window.__onBrowserWsReady = function (state) {
+    ws = state;
+    wsRoot = "";
+    wsListPath = "";
+    renderWsPill();
+    wsModal.classList.add("open");
+    wsErr("");
+    wsRenderActive();
+    wsShow("ws-active");
+    toast("Trusted folder: " + (state.path || ""));
+  };
+  loadConfig().then(function () {
+    if (!window.__browserWsRestore) return;
+    return window.__browserWsRestore().then(function (state) {
+      if (state) { ws = state; renderWsPill(); }
+    });
+  }).catch(function () {});
 
   if (location.protocol === "file:") {
     setTimeout(() => {
