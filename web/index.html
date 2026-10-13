@@ -1146,6 +1146,339 @@
 </div>
 
 <script>
+/* ---------------- browser mode (no server: GitHub Pages) ----------------
+   When this page is opened WITHOUT the local Python server (e.g. hosted
+   on GitHub Pages), these few /api/* routes are emulated in the browser
+   and chat calls the AI provider directly, so everything still works. */
+(function () {
+  "use strict";
+  var LS_KEYS = "openlink.browser.keys";      // { providerId: apikey }
+  var LS_SEL = "openlink.browser.sel";        // { provider, model }
+  var LS_CUSTOM = "openlink.browser.custom";  // { id: {label, base_url, models, model} }
+
+  // CORS-friendly providers that work straight from the browser.
+  var PRESETS = {
+    openrouter: {
+      label: "OpenRouter (free models)",
+      base_url: "https://openrouter.ai/api/v1",
+      model: "nvidia/nemotron-3.5-lightning:free",
+      models: [
+        "nvidia/nemotron-3.5-lightning:free",
+        "nvidia/nemotron-3-super-120b-a12b:free",
+        "nvidia/nemotron-3-ultra-550b-a55b:free",
+        "google/gemma-4-31b-it:free",
+        "cohere/north-mini-code:free",
+        "liquid/lfm-2.5-2.6b:free"
+      ],
+      key_url: "https://openrouter.ai/keys"
+    },
+    groq: {
+      label: "Groq (fast)",
+      base_url: "https://api.groq.com/openai/v1",
+      model: "openai/gpt-oss-120b",
+      models: ["openai/gpt-oss-120b", "openai/gpt-oss-20b"],
+      key_url: "https://console.groq.com/keys"
+    },
+    siliconflow: {
+      label: "SiliconFlow (free models)",
+      base_url: "https://api.siliconflow.com/v1",
+      model: "Qwen/Qwen3-8B",
+      models: ["Qwen/Qwen3-8B"],
+      key_url: "https://cloud.siliconflow.com/models"
+    }
+  };
+  var MODE_LABEL = { build: "Build", plan: "Plan", ask: "Ask" };
+  var SYSTEM =
+    "You are OpenLink AI, a helpful assistant. Always finish the job: when you " +
+    "write code, an HTML page or any file, output the complete finished content " +
+    "from start to end and never stop partway or ask to continue.";
+
+  var realFetch = window.fetch.bind(window);
+  var modePromise = null;
+
+  function getLS(k, d) { try { var v = JSON.parse(localStorage.getItem(k)); return v == null ? d : v; } catch (e) { return d; } }
+  function setLS(k, v) { localStorage.setItem(k, JSON.stringify(v)); }
+  function keys() { return getLS(LS_KEYS, {}); }
+  function custom() { return getLS(LS_CUSTOM, {}); }
+  function allProviders() {
+    var out = {}, p;
+    for (p in PRESETS) out[p] = PRESETS[p];
+    var c = custom();
+    for (p in c) out[p] = c[p];
+    return out;
+  }
+  function sel() {
+    var s = getLS(LS_SEL, null);
+    var all = allProviders();
+    if (!s || !all[s.provider]) return { provider: "openrouter", model: PRESETS.openrouter.model };
+    return s;
+  }
+  function json(obj, status) {
+    return new Response(JSON.stringify(obj), {
+      status: status || 200,
+      headers: { "Content-Type": "application/json" }
+    });
+  }
+
+  // Probe the real server once; "server" = local app is running, "browser" = emulate.
+  function detect() {
+    if (!modePromise) {
+      modePromise = realFetch("/api/config")
+        .then(function (r) {
+          var ct = r.headers.get("content-type") || "";
+          return r.ok && ct.indexOf("json") !== -1 ? "server" : "browser";
+        })
+        .catch(function () { return "browser"; });
+    }
+    return modePromise;
+  }
+
+  /* ---- emulated routes ---- */
+  function cfgRoute() {
+    var s = sel(), ks = keys(), all = allProviders();
+    var providers = [];
+    for (var id in all) {
+      var p = all[id];
+      providers.push({
+        id: id,
+        label: p.label,
+        models: p.models || [],
+        has_key: !!ks[id],
+        active: id === s.provider,
+        custom: !!p.custom,
+        key_url: p.key_url || ""
+      });
+    }
+    var active = all[s.provider] || {};
+    return json({
+      provider: active.label || s.provider,
+      provider_id: s.provider,
+      model: s.model,
+      ready: !!ks[s.provider],
+      providers: providers,
+      workspace: null,
+      allow_exec: false,
+      browser_mode: true
+    });
+  }
+
+  function chatRoute(init) {
+    var payload = {};
+    try { payload = JSON.parse((init && init.body) || "{}"); } catch (e) {}
+    var message = (payload.message || "").trim();
+    var files = payload.files || [];
+    var history = payload.history || [];
+    var mode = payload.mode;
+    if (!MODE_LABEL[mode]) mode = "build";
+    if (!message && !files.length) return json({ error: "empty message" }, 400);
+
+    var s = sel(), all = allProviders(), p = all[s.provider];
+    var key = keys()[s.provider] || "";
+    if (!p) return json({ error: "Unknown provider — pick one in the badge above." }, 400);
+    if (!key) {
+      return json({
+        error: "No API key for " + p.label + " yet — click the status badge, then \"add key\". Free key: " + (p.key_url || "https://openrouter.ai/keys")
+      }, 401);
+    }
+
+    var userText = message || "Analyze the attached files.";
+    for (var i = 0; i < files.length; i++) {
+      userText += "\n\n--- " + files[i].name + " ---\n" + (files[i].content || "");
+    }
+    var sys = SYSTEM + "\n\n" + (
+      mode === "plan" ? "Mode: PLAN. Give a short numbered step-by-step plan and ask for approval before changing anything."
+      : mode === "ask" ? "Mode: ASK. Answer the question directly and concisely. Do not output whole files unless they are required to explain the answer."
+      : "Mode: BUILD. You are chatting in the browser without access to files, so produce the complete finished code or content directly in your reply."
+    );
+    var msgs = [{ role: "system", content: sys }];
+    for (var j = 0; j < history.length; j++) {
+      var m = history[j];
+      if ((m.role === "user" || m.role === "assistant") && m.content) msgs.push({ role: m.role, content: m.content });
+    }
+    msgs.push({ role: "user", content: userText });
+
+    var headers = {
+      "Content-Type": "application/json",
+      "Authorization": "Bearer " + key
+    };
+    if (s.provider === "openrouter") {
+      // OpenRouter asks for these on browser calls.
+      headers["HTTP-Referer"] = location.origin;
+      headers["X-Title"] = "Openlink AI";
+    }
+
+    return realFetch((p.base_url || "").replace(/\/+$/, "") + "/chat/completions", {
+      method: "POST",
+      headers: headers,
+      body: JSON.stringify({ model: s.model, messages: msgs, stream: true }),
+      signal: init && init.signal
+    }).then(function (up) {
+      if (!up.ok || !up.body) {
+        return up.json().catch(function () { return {}; }).then(function (e) {
+          var msg = (e.error && (e.error.message || e.error)) || ("HTTP " + up.status);
+          if (typeof msg !== "string") msg = JSON.stringify(msg);
+          return json({ error: p.label + ": " + msg }, up.status >= 500 ? 502 : up.status);
+        });
+      }
+      // Re-encode the provider's OpenAI SSE into the app's own event format.
+      var reader = up.body.getReader();
+      var dec = new TextDecoder();
+      var enc = new TextEncoder();
+      var stream = new ReadableStream({
+        start: function (controller) {
+          var send = function (ev, data) {
+            controller.enqueue(enc.encode("event: " + ev + "\ndata: " + JSON.stringify(data) + "\n\n"));
+          };
+          send("meta", { mode: mode, mode_label: MODE_LABEL[mode], tools: [], trusted: true });
+          var buf = "";
+          Promise.prototype.catch.call(reader.read().then(function pump(res) {
+            if (res.done) {
+              send("done", { ok: true });
+              controller.close();
+              return;
+            }
+            buf += dec.decode(res.value, { stream: true });
+            var lines = buf.split("\n");
+            buf = lines.pop();
+            for (var k = 0; k < lines.length; k++) {
+              var line = lines[k];
+              if (line.indexOf("data: ") !== 0) continue;
+              var data = line.slice(6).trim();
+              if (!data || data === "[DONE]") continue;
+              try {
+                var j = JSON.parse(data);
+                var t = j.choices && j.choices[0] && j.choices[0].delta && j.choices[0].delta.content;
+                if (t) send("token", { text: t });
+              } catch (e) {}
+            }
+            return reader.read().then(pump);
+          }), function (err) {
+            var aborted = init && init.signal && init.signal.aborted;
+            if (!aborted) {
+              try { send("error", { message: String((err && err.message) || err) }); } catch (e) {}
+            }
+            try { controller.close(); } catch (e) {}
+          });
+        }
+      });
+      return new Response(stream, { headers: { "Content-Type": "text/event-stream; charset=utf-8" } });
+    });
+  }
+
+  function keysRoute(init) {
+    var body = {};
+    try { body = JSON.parse((init && init.body) || "{}"); } catch (e) {}
+    if (!body.provider || !body.api_key) return json({ error: "provider and api_key are required" }, 400);
+    var ks = keys();
+    ks[body.provider] = String(body.api_key).trim();
+    setLS(LS_KEYS, ks);
+    return json({ saved: true });
+  }
+
+  function selectRoute(init) {
+    var body = {};
+    try { body = JSON.parse((init && init.body) || "{}"); } catch (e) {}
+    var all = allProviders(), s = sel();
+    if (body.provider) {
+      if (!all[body.provider]) return json({ error: "Unknown provider: " + body.provider }, 400);
+      s.provider = body.provider;
+    }
+    if (body.model) s.model = body.model;
+    else if (!all[s.provider] || all[s.provider].models.indexOf(s.model) === -1) {
+      s.model = (all[s.provider] && all[s.provider].models[0]) || "";
+    }
+    setLS(LS_SEL, s);
+    var ks = keys();
+    return json({
+      provider: (all[s.provider] || {}).label || s.provider,
+      provider_id: s.provider,
+      model: s.model,
+      ready: !!ks[s.provider]
+    });
+  }
+
+  function modelsRoute(init) {
+    var body = {};
+    try { body = JSON.parse((init && init.body) || "{}"); } catch (e) {}
+    var base = String(body.base_url || "").trim().replace(/\/+$/, "");
+    if (!base) return json({ error: "Enter the base URL first." }, 400);
+    var headers = {};
+    if (body.api_key) headers["Authorization"] = "Bearer " + body.api_key;
+    return realFetch(base + "/models", { headers: headers })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        var list = (d.data || []).map(function (m) { return m.id; }).filter(Boolean);
+        if (!list.length) throw new Error("the provider returned no models");
+        return json({ models: list });
+      })
+      .catch(function (e) {
+        return json({ error: "Could not load models (" + (e.message || e) + ") — this provider may not allow browser calls. Type the model IDs manually." });
+      });
+  }
+
+  function providersRoute(init) {
+    var body = {};
+    try { body = JSON.parse((init && init.body) || "{}"); } catch (e) {}
+    var label = String(body.label || "").trim();
+    var base = String(body.base_url || "").trim().replace(/\/+$/, "");
+    var models = (body.models || []).map(function (m) { return String(m).trim(); }).filter(Boolean);
+    if (!label || !base || !models.length) return json({ error: "Name, base URL and at least one model are required." }, 400);
+    var id = label.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "custom";
+    var c = custom(), n = 2, base2 = id;
+    while (PRESETS[id] || c[id]) { id = base2 + "-" + n; n++; }
+    var model = String(body.model || "").trim() || models[0];
+    if (models.indexOf(model) === -1) models.unshift(model);
+    c[id] = { label: label, base_url: base, models: models, model: model, custom: true };
+    setLS(LS_CUSTOM, c);
+    if (body.api_key) {
+      var ks = keys();
+      ks[id] = String(body.api_key).trim();
+      setLS(LS_KEYS, ks);
+    }
+    setLS(LS_SEL, { provider: id, model: model });
+    return json({ provider_id: id, provider: label, model: model, added: true });
+  }
+
+  function removeProviderRoute(init) {
+    var body = {};
+    try { body = JSON.parse((init && init.body) || "{}"); } catch (e) {}
+    var c = custom();
+    if (!c[body.provider]) return json({ error: "Only providers you added in the browser can be removed here." }, 400);
+    delete c[body.provider];
+    setLS(LS_CUSTOM, c);
+    var ks = keys();
+    delete ks[body.provider];
+    setLS(LS_KEYS, ks);
+    return json({ removed: true });
+  }
+
+  var NEEDS_APP = "That feature needs the local Openlink app (run: python run.py web). Chat works here in the browser though.";
+
+  function route(url, init) {
+    var path = url.split("?")[0];
+    if (path === "/api/config") return cfgRoute();
+    if (path === "/api/chat") return chatRoute(init);
+    if (path === "/api/keys") return keysRoute(init);
+    if (path === "/api/select") return selectRoute(init);
+    if (path === "/api/models") return modelsRoute(init);
+    if (path === "/api/providers") return providersRoute(init);
+    if (path === "/api/providers/remove") return removeProviderRoute(init);
+    if (path === "/api/settings") return json({ error: NEEDS_APP }, 400);
+    if (path.indexOf("/api/workspace") === 0 || path === "/api/vscode") return json({ error: NEEDS_APP }, 400);
+    return json({ error: "not found" }, 404);
+  }
+
+  window.fetch = function (input, init) {
+    var url = typeof input === "string" ? input : (input && input.url) || "";
+    if (url.indexOf("/api/") !== 0) return realFetch(input, init);
+    return detect().then(function (m) {
+      if (m === "server") return realFetch(input, init);
+      return route(url, init || {});
+    });
+  };
+})();
+</script>
+<script>
   const chatInner = document.getElementById("chat-inner");
   const input = document.getElementById("input");
   const sendBtn = document.getElementById("send");
