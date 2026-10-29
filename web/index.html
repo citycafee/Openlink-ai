@@ -1163,12 +1163,21 @@
       base_url: "https://openrouter.ai/api/v1",
       model: "nvidia/nemotron-3.5-lightning:free",
       models: [
+        "minimax/minimax-m3.1-flash:free",
+        "nvidia/nemotron-3.5-super-vl:free",
+        "xingchen-agi/xing4.0-29b-a4b:free",
         "nvidia/nemotron-3.5-lightning:free",
         "nvidia/nemotron-3-super-120b-a12b:free",
         "nvidia/nemotron-3-ultra-550b-a55b:free",
-        "google/gemma-4-31b-it:free",
+        "thinkingmachines/inkling:free",
+        "thinkingmachines/inkling-small:free",
+        "dots-studio/dots-3-note-preview:free",
+        "poolside/laguna-s-2.1:free",
+        "poolside/laguna-xs-2.1:free",
         "cohere/north-mini-code:free",
-        "liquid/lfm-2.5-2.6b:free"
+        "liquid/lfm-2.5-2.6b:free",
+        "google/gemma-4-31b-it:free",
+        "google/gemma-4-26b-a4b-it:free"
       ],
       key_url: "https://openrouter.ai/keys"
     },
@@ -1176,7 +1185,7 @@
       label: "Groq (fast)",
       base_url: "https://api.groq.com/openai/v1",
       model: "openai/gpt-oss-120b",
-      models: ["openai/gpt-oss-120b", "openai/gpt-oss-20b"],
+      models: ["openai/gpt-oss-120b", "openai/gpt-oss-20b", "qwen/qwen3.8-27b", "allam-2-7b"],
       key_url: "https://console.groq.com/keys"
     },
     siliconflow: {
@@ -1192,9 +1201,9 @@
       model: "agnes-3.0-flash",
       models: [
         "agnes-3.0-flash",
-        "agnes-3.0-flash-max",
+        "agnes-3.0-pro",
         "agnes-2.5-flash",
-        "agnes-2.5-pro"
+        "agnes-2.5-pro-beta"
       ]
     },
     nararouter: {
@@ -1209,12 +1218,21 @@
       ]
     },
     apinex: {
-      label: "Apinex (free)",
+      label: "Apinex (free — daily check-in)",
       base_url: "https://api.apinex.bond/v1",
       model: "free/glm-5.3-flash",
       models: [
         "free/glm-5.3-flash",
-        "free/mimo-v2.6-pro"
+        "free/glm-5.3",
+        "free/glm-5.3-flashx",
+        "free/gpt-6-luna",
+        "free/gemini-3.8-flash",
+        "free/deepseek-v4.1-flash",
+        "free/deepseek-v4-flash-0731",
+        "free/deepseek-v4-pro-0813",
+        "free/minimax-m3.1-flash",
+        "free/mimo-v2.6-pro",
+        "free/qwen-3.8-max"
       ]
     }
   };
@@ -3637,6 +3655,25 @@
       chatInner.appendChild(div);
     }, 300);
   }
+
+  (function() {
+    var sidebar = document.getElementById("sidebar");
+    var toggleside = document.getElementById("toggleside");
+    function updateSidebar() {
+      if (window.innerWidth <= 760) {
+        sidebar.classList.add("hidden");
+      } else {
+        sidebar.classList.remove("hidden");
+      }
+    }
+    updateSidebar();
+    window.addEventListener("resize", updateSidebar);
+    if (toggleside) {
+      toggleside.onclick = function() {
+        sidebar.classList.toggle("hidden");
+      };
+    }
+  })();
 </script>
 </body>
 </html>
