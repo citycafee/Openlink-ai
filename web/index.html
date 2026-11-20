@@ -2,7 +2,7 @@
 <html lang="en" data-theme="dark">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content">
 <title>OpenLink AI</title>
 <style>
   :root {
@@ -51,8 +51,22 @@
     font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
     font-size: 14px;
     overflow: hidden;
+    overscroll-behavior: none;
+    -webkit-text-size-adjust: 100%;
   }
-  #app { display: flex; height: 100vh; }
+  /* The app is pinned to the visible area (--app-h / --app-top are kept in
+     sync with the visual viewport in JS) so the composer never ends up
+     underneath the on-screen keyboard on phones. */
+  #app {
+    display: flex;
+    height: 100vh;
+    height: 100dvh;
+    height: var(--app-h, 100dvh);
+    position: fixed;
+    top: var(--app-top, 0px);
+    left: 0;
+    right: 0;
+  }
 
   /* ---------- sidebar ---------- */
   #sidebar {
@@ -867,12 +881,28 @@
   ::-webkit-scrollbar-track { background: transparent; }
 
   @media (max-width: 760px) {
-    #sidebar { position: fixed; z-index: 40; height: 100vh; }
+    #sidebar { position: fixed; z-index: 40; height: 100%; }
     #sidebar.hidden { margin-left: calc(-1 * var(--side-w)); }
-    #model-pill { max-width: 34vw; }
     #brand { display: none; }
+    #topbar { gap: 6px; padding: 0 8px; }
+    #topbar > * { min-width: 0; }
+    #ws-pill { max-width: 22vw; }
+    #model-pill { max-width: 38vw; }
     .cbar-hint { display: none; }
-    .ddmenu { min-width: 240px; }
+    .ddmenu { min-width: 240px; max-width: calc(100vw - 20px); }
+
+    /* Keep the composer comfortably above the keyboard and the gesture bar. */
+    footer {
+      padding: 0 10px calc(8px + env(safe-area-inset-bottom));
+      gap: 6px;
+    }
+    #chat { padding: 12px 0 8px; }
+    .chat-inner { padding: 0 14px; }
+    #welcome { padding: 4vh 16px 0; }
+    .composer { padding: 8px 10px 8px; border-radius: 12px; }
+    #input { height: 46px; min-height: 46px; max-height: 34vh; }
+    .cbar { flex-wrap: wrap; row-gap: 6px; }
+    .ddbtn { max-width: 100%; }
   }
 </style>
 </head>
@@ -3673,6 +3703,56 @@
         sidebar.classList.toggle("hidden");
       };
     }
+  })();
+
+  /* ---------------- mobile keyboard / viewport ---------------- */
+  (function () {
+    var root = document.documentElement;
+    var vv = window.visualViewport;
+    var chat = document.getElementById("chat");
+    var coarse = window.matchMedia && window.matchMedia("(pointer: coarse)").matches;
+
+    // Don't pop the keyboard open the moment the page loads on a phone.
+    if (coarse && document.activeElement === input) input.blur();
+
+    function syncViewport() {
+      var h = window.innerHeight;
+      var top = 0;
+      if (vv && Math.abs(vv.scale - 1) < 0.01) {
+        h = vv.height;
+        top = vv.offsetTop;
+      }
+      root.style.setProperty("--app-h", Math.round(h) + "px");
+      root.style.setProperty("--app-top", Math.round(top) + "px");
+    }
+
+    function keepComposerVisible() {
+      if (document.activeElement !== input || !chat) return;
+      chat.scrollTop = chat.scrollHeight;
+    }
+
+    var raf = 0;
+    function onChange() {
+      syncViewport();
+      if (raf) return;
+      raf = requestAnimationFrame(function () {
+        raf = 0;
+        syncViewport();
+        keepComposerVisible();
+      });
+    }
+
+    syncViewport();
+    if (vv) {
+      vv.addEventListener("resize", onChange);
+      vv.addEventListener("scroll", onChange);
+    }
+    window.addEventListener("resize", onChange);
+    window.addEventListener("orientationchange", function () { setTimeout(onChange, 150); });
+    input.addEventListener("focus", function () {
+      setTimeout(function () { syncViewport(); keepComposerVisible(); }, 300);
+    });
+    input.addEventListener("blur", function () { setTimeout(syncViewport, 300); });
   })();
 </script>
 </body>
